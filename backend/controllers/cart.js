@@ -1,0 +1,176 @@
+const cartModel = require("../model/cart");
+const productModel = require("../model/products"); // 👈 for fetching product details
+
+// 🛒 Add to Cart
+const addToCart = async (req, res) => {
+  try {
+    const { productsId } = req.params;
+    const { quantity = 1, size } = req.body;
+    const userId = req.user.userId;
+
+    // 1️⃣ Find product to get its price
+    const product = await productModel.findById(productsId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // 2️⃣ Find or create cart for user
+    let cart = await cartModel.findOne({ userId });
+    if (!cart) {
+      cart = new cartModel({ userId, items: [], totalAmount: 0 });
+    }
+
+    // 3️⃣ Check if item (same product + same size) already exists
+    const existingItem = cart.items.find(
+      (item) => item.productsId.toString() === productsId && item.size === size
+    );
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+    } else {
+      cart.items.push({
+        productsId,
+        quantity,
+        size,
+        priceAtAdd: product.price,
+      });
+    }
+
+    // 4️⃣ Update totalAmount
+    cart.totalAmount = cart.items.reduce(
+      (total, item) => total + item.quantity * item.priceAtAdd,
+      0
+    );
+
+    await cart.save();
+
+    res.status(200).json({ message: "Product added to cart", cart });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ❌ Remove from Cart (single item or clear entire cart)
+const removeFromCart = async (req, res) => {
+  try {
+    const { cartId, cartItemId } = req.params;
+
+    const cart = await cartModel.findById(cartId);
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    if (!cartItemId) {
+      // 🧹 Clear entire cart
+      cart.items = [];
+      cart.totalAmount = 0;
+      await cart.save();
+      return res.status(200).json({ message: "Cart cleared successfully" });
+    }
+
+    // 🗑️ Remove specific item
+    const itemIndex = cart.items.findIndex(
+      (item) => item._id.toString() === cartItemId
+    );
+
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    cart.items.splice(itemIndex, 1);
+
+    // Update total amount
+    cart.totalAmount = cart.items.reduce(
+      (total, item) => total + item.quantity * item.priceAtAdd,
+      0
+    );
+
+    await cart.save();
+    res.status(200).json({ message: "Item removed successfully", cart });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ✏️ Update Cart Item (quantity or size)
+const updateCartItem = async (req, res) => {
+  try {
+    const { cartId, cartItemId } = req.params;
+    const { size, quantity } = req.body;
+
+    const cart = await cartModel.findById(cartId);
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    const item = cart.items.find((i) => i._id.toString() === cartItemId);
+
+    if (!item) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    // Update only provided fields
+    if (size) item.size = size;
+
+    if (quantity !== undefined) {
+      if (quantity <= 0) {
+        // Remove item if quantity <= 0
+        cart.items = cart.items.filter((i) => i._id.toString() !== cartItemId);
+      } else {
+        item.quantity = quantity;
+      }
+    }
+
+    // Recalculate total
+    cart.totalAmount = cart.items.reduce(
+      (total, i) => total + i.quantity * i.priceAtAdd,
+      0
+    );
+
+    await cart.save();
+
+    res.status(200).json({
+      message: "Cart item updated successfully",
+      cart,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// 📦 Get All Cart Items
+const getAllCartItems = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const cart = await cartModel
+      .findOne({ userId })
+      .populate("items.productsId");
+
+    console.log(cart);
+
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found for this user" });
+    }
+
+    res.status(200).json({
+      message: "✅ Cart items fetched successfully",
+      cartItems: cart.items,
+      totalAmount: cart.totalAmount,
+      totalItems: cart.items.length,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = {
+  addToCart,
+  removeFromCart,
+  updateCartItem,
+  getAllCartItems,
+};

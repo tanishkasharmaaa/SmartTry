@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SmartTry AI Chat</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: auto; }
+    .message { margin: 5px 0; }
+    .user { color: blue; }
+    .ai { color: green; }
+    #input { width: 80%; padding: 5px; }
+    #send { padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <h1>SmartTry AI Chat</h1>
+  <div id="chat"></div>
+  <input type="text" id="input" placeholder="Type your message..." />
+  <button id="send">Send</button>
+
+  <script>
+    const chatEl = document.getElementById("chat");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+
+    // ---------------- WebSocket ----------------
+    const ws = new WebSocket("ws://localhost:3000");
+
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "connected") {
+        console.log("Connected sessionId:", data.sessionId);
+      }
+
+      if (data.type === "aiMessage") {
+        // AI message received
+        console.log(data)
+        appendMessage("AI", data.message, "ai");
+      }
+
+      if (data.type === "aiEnd") {
+        console.log("AI finished responding.");
+      }
+
+      if (data.type === "error") {
+        appendMessage("Error", data.message, "ai");
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
+
+    // ---------------- Send User Message ----------------
+    function sendMessage() {
+      const message = inputEl.value.trim();
+      if (!message) return;
+
+      // Show user message in chat
+      appendMessage("You", message, "user");
+
+      // Send to server
+      ws.send(JSON.stringify({
+        type: "askAI",
+        query: message,
+        conversationHistory: [] // optional
+      }));
+
+      inputEl.value = "";
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    // ---------------- Helper ----------------
+    function appendMessage(sender, text, className) {
+      const div = document.createElement("div");
+      div.classList.add("message", className);
+      div.textContent = `${sender}: ${text}`;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+  </script>
+</body>
+</html>
