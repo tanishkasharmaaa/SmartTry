@@ -20,10 +20,10 @@ const app = express();
 // CORS (IMPORTANT: must allow credentials for cookies)
 app.use(
   cors(
-  //   {
-  //   origin: process.env.CLIENT_URL || "http://localhost:5173",
-  //   credentials: true
-  // }
+    {
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true
+  }
 )
 );
 
