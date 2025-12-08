@@ -37,7 +37,10 @@ authRouter.get(
           password: "",
           image: image || "",
           seller: false,
-          sellerInfo: {}
+          birthday:"",
+          gender:"",
+          bio: "",
+          sellerInfo: {},
         });
 
         await user.save();
@@ -62,7 +65,6 @@ authRouter.get(
       // ---- IMPORTANT ----
       // Redirect user to frontend
       return res.redirect(process.env.CLIENT_URL); // frontend home page
-
     } catch (error) {
       console.error("Google Auth Error:", error);
       res.status(500).json({ message: "Server error during login" });
@@ -75,17 +77,17 @@ authRouter.get(
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-
+  console.log(token, "tokennnnn");
   if (!token) return res.status(401).json({ message: "No token provided" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-
+   console.log(decoded, "decodeddd");
     const user = await userModel
-      .findById(decoded.id)
+      .findById(decoded.userId)
       .select("name email image");
 
-      console.log(user,"userprofile")
+    console.log(user, "userprofile");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
@@ -93,7 +95,6 @@ authRouter.get("/profile", async (req, res) => {
       email: user.email,
       photo: user.image,
     });
-
   } catch {
     res.status(401).json({ message: "Invalid token" });
   }

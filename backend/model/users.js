@@ -6,7 +6,7 @@ const usersSchema = new mongoose.Schema({
   password: { type: String },
   image: { type: String },
   birthday: { type: Date },
-  gender: { type: String, enum: ["Male", "Female", "Unisex"] },
+  gender: { type: String, enum: ["Male", "Female", "Unisex",""] },
   bio: { type: String },
   seller: { type: Boolean, default: false },
   sellerInfo: {
