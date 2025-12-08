@@ -110,9 +110,12 @@ authRouter.get("/logout", (req, res) => {
     sameSite: "none",
   });
 
+
+
   req.logout(() => {
-    res.json({ message: "Logged out successfully" });
+    return res.redirect(process.env.CLIENT_URL)
   });
+
 });
 
 module.exports = authRouter;
