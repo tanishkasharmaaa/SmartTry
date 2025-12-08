@@ -25,7 +25,7 @@ const AuthProvider = ({children}) => {
                 }
 
                 const data = await response.json();
-                console.log(data)
+                console.log(data,"-------")
                 setUser(data);
                 setAuthenticated(true);
                 localStorage.setItem("userInfo",JSON.stringify(data));

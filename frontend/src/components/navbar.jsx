@@ -60,7 +60,7 @@ const Navbar = () => {
           <Text cursor="pointer" _hover={{ color: "black" }}>Unisex</Text>
           <Text cursor="pointer" _hover={{ color: "black" }}>Contact</Text>
           <Button
-  onClick={() => authenticated ? window.location.href = '/api/auth/logout' : window.location.href = '/api/auth/google'}
+  onClick={() => authenticated ? window.location.href = '/auth/logout' : window.location.href = '/auth/google'}
 >
   Signup
 </Button>

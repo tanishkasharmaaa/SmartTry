@@ -85,6 +85,7 @@ authRouter.get("/profile", async (req, res) => {
       .findById(decoded.id)
       .select("name email image");
 
+      console.log(user,"userprofile")
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
