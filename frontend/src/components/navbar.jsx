@@ -60,9 +60,7 @@ const Navbar = () => {
           <Text cursor="pointer" _hover={{ color: "black" }}>Unisex</Text>
           <Text cursor="pointer" _hover={{ color: "black" }}>Contact</Text>
           <Button
-  onClick={() => {
-    window.location.href = "https://smarttry.onrender.com/auth/google";
-  }}
+  onClick={() => authenticated ? window.location.href = '/api/auth/logout' : window.location.href = '/api/auth/google'}
 >
   Signup
 </Button>
