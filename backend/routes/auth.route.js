@@ -59,7 +59,7 @@ authRouter.get(
   }
 );
 
-router.get("/profile", async (req, res) => {
+authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
 
   if (!token) {
@@ -90,7 +90,7 @@ router.get("/profile", async (req, res) => {
 });
 
 // ---------------------------------- LOGOUT ----------------------------------
-router.get("/logout", (req, res) => {
+authRouter.get("/logout", (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
