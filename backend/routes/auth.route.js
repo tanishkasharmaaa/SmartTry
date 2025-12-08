@@ -59,4 +59,48 @@ authRouter.get(
   }
 );
 
+router.get("/profile", async (req, res) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  try {
+    // Decode token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Find user
+    const user = await userModel
+      .findById(decoded.id)
+      .select("name email photo");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      name: user.name,
+      email: user.email,
+      photo: user.photo,
+    });
+  } catch (err) {
+    res.status(401).json({ message: "Invalid token" });
+  }
+});
+
+// ---------------------------------- LOGOUT ----------------------------------
+router.get("/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "None",
+  });
+
+  req.logout(() => {
+    res.redirect("/auth");
+  });
+});
+
+
 module.exports = authRouter;
