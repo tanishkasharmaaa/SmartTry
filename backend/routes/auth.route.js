@@ -38,6 +38,13 @@ authRouter.get(
       // Generate JWT
       const token = await generateToken(user.email, user.name, user._id, user.seller);
 
+       res.cookie("token", token, {
+        httpOnly: true,            // Cannot be accessed by JS
+        secure: true,              // true if using HTTPS (Render/Production)
+        sameSite: "none",          // Required for cross-site cookies
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+      
       // Redirect or send response
       return res.status(200).json({
         message: user ? "User logged in successfully" : "User created successfully",
