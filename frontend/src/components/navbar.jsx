@@ -20,6 +20,7 @@ import AuthContext from "../context/authContext";
 import ThemeContext from "../context/themeContext";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import Login from "./login";
 // import { clsx } from "clsx";
 
 const ThemeToggleButton5 = ({ onClick, isDark }) => {
@@ -158,7 +159,7 @@ const Navbar = () => {
           ))}
 
           {/* Signup / Logout */}
-          <Button
+          {/* <Button
             bg={textColor}
             color={bgColor}
             border="1px solid"
@@ -172,7 +173,8 @@ const Navbar = () => {
             }
           >
             {authenticated ? "Logout" : "Signup"}
-          </Button>
+          </Button> */}
+          <Login/>
         </Box>
       </Box>
 
@@ -224,7 +226,7 @@ const Navbar = () => {
             ))}
 
             {/* AUTH BUTTON */}
-            <Button
+            {/* <Button
               mt={5}
               bg={textColor}
               color={bgColor}
@@ -239,7 +241,8 @@ const Navbar = () => {
               }
             >
               {authenticated ? "Logout" : "Signup"}
-            </Button>
+            </Button> */}
+            <Login/>
           </DrawerBody>
         </DrawerContent>
       </Drawer>

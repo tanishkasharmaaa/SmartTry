@@ -1,19 +1,27 @@
 const userModel = require("../model/users");
 const bcrypt = require("bcrypt");
+const {sendSignupEmail} = require("../services/sendSignupEmail")
 
 // CREATE USER
 const createUser = async (req, res) => {
   const body = req.body;
-  try {
-    const checkUser = await userModel.findOne({ email: body.email });
-    if (checkUser) return res.status(400).json({ message: "User already exists" });
 
+  try {
+    // CHECK USER ALREADY EXISTS
+    const checkUser = await userModel.findOne({ email: body.email });
+    if (checkUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // PASSWORD VALIDATION
     if (!body.password || body.password.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
+    // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
+    // CREATE USER
     const user = new userModel({
       name: body.name,
       email: body.email,
@@ -38,12 +46,33 @@ const createUser = async (req, res) => {
 
     await user.save();
 
+    // REMOVE PASSWORD BEFORE SENDING RESPONSE
     const userData = user.toObject();
     delete userData.password;
 
-    res.status(201).json({ message: "User created successfully", user: userData });
+    // 📧 SEND SIGNUP EMAIL
+    const emailResponse = await sendSignupEmail(
+      body.email,
+      "Welcome to SmartTry!",
+      { username: body.name }
+    );
+
+    // ❌ IF EMAIL FAILED TO SEND
+    if (!emailResponse.success) {
+      return res.status(400).json({
+        message: "User created but email is invalid or unreachable",
+        user: userData,
+        emailError: emailResponse.error,
+      });
+    }
+
+    // ✅ SUCCESS RESPONSE
+    res.status(201).json({
+      message: "User created successfully! Confirmation email sent.",
+      user: userData,
+    });
   } catch (error) {
-    console.log(error);
+    console.log("❌ createUser Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
