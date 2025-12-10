@@ -1,13 +1,10 @@
-const Redis = require("ioredis");
 require("dotenv").config();
 
-// Use your RedisLabs URL from .env
-const redis = new Redis(process.env.REDIS_URL, {
-  maxRetriesPerRequest: null, // prevents max retries error
-  enableOfflineQueue: true,   // queue commands if disconnected
-});
+const redisOptions = {
+  url: process.env.REDIS_URL,
+  connectTimeout: 10000,      // 10 seconds
+  maxRetriesPerRequest: null,  // prevents max retries error
+  enableOfflineQueue: true,
+};
 
-redis.on("connect", () => console.log("✅ Connected to Redis"));
-redis.on("error", (err) => console.error("❌ Redis Connection Error:", err));
-
-module.exports = redis;
+module.exports = redisOptions;

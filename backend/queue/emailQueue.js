@@ -1,12 +1,12 @@
 const Queue = require("bull");
-const redis = require("../config/redis");
+const redisOptions = require("../config/redis");
 
 const emailQueue = new Queue("emailQueue", {
-  redis: {
-    host: redis.options.host,
-    port: redis.options.port,
-    password: redis.options.password
-  }
+  redis: redisOptions,
 });
+
+emailQueue.on("error", (err) => console.error("❌ Queue Error:", err));
+emailQueue.on("waiting", (jobId) => console.log(`🕓 Job waiting: ${jobId}`));
+emailQueue.on("active", (job) => console.log(`⚡ Processing job: ${job.id}`));
 
 module.exports = emailQueue;
