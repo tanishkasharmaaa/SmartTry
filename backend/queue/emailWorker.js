@@ -1,16 +1,19 @@
-// queue/emailWorker.js
 const emailQueue = require("./emailQueue");
 const { sendOrderUpdateEmail } = require("../utils/emailService");
 
 emailQueue.process(async (job) => {
+  const { to, subject, message, productImage } = job.data;
+
+  if (!to || !subject || !message) {
+    console.log("❌ Email sending failed: Missing required email fields");
+    return;
+  }
+
   try {
-    console.log("Processing email job:", job.data);
-
-    await sendOrderUpdateEmail(job.data);
-
-    console.log(`✅ Email job completed for ${job.data.to}`);
-  } catch (error) {
-    console.error("❌ Email worker error:", error.message);
-    throw error; // Bull will mark job as failed
+    await sendOrderUpdateEmail({ to, subject, message, productImage });
+    console.log(`✅ Email sent to ${to}`);
+  } catch (err) {
+    console.error("❌ Email worker error:", err);
+    throw err;
   }
 });
