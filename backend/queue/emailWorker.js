@@ -19,7 +19,12 @@ emailQueue.process(async (job, done) => {
     }
 
     if (data.type === "orderUpdate") {
-      await sendOrderUpdateEmail(data);
+      await sendOrderUpdateEmail({
+        to: data.to,
+        subject: data.subject,
+        message: data.message,
+        productImage: data.productImage,
+      });
     }
 
     done();
@@ -28,3 +33,5 @@ emailQueue.process(async (job, done) => {
     done(err);
   }
 });
+
+module.exports = emailQueue;

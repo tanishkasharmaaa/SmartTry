@@ -1,7 +1,7 @@
 const Queue = require("bull");
 require("dotenv").config();
 
-const emailQueue = new Queue("emailQueue", process.env.REDIS_URL); // pass URL string
+const emailQueue = new Queue("emailQueue", process.env.REDIS_URL);
 
 emailQueue.on("error", (err) => console.error("❌ Queue Error:", err));
 emailQueue.on("waiting", (jobId) => console.log(`🕓 Job waiting: ${jobId}`));

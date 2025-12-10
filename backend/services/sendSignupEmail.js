@@ -1,8 +1,11 @@
 require("dotenv").config();
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
+
+// Set SendGrid API Key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /**
- * Sends signup email using Gmail SMTP (App Password)
+ * Sends signup email using SendGrid
  * @param {Object} param0
  * @param {string} param0.to - Recipient email
  * @param {string} param0.subject - Email subject
@@ -13,15 +16,6 @@ const sendSignupEmail = async ({ to, subject, username }) => {
     if (!to || !subject || !username) {
       throw new Error("Missing required fields for sending email");
     }
-
-    // Create Nodemailer transporter with Gmail SMTP
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER, // your Gmail address
-        pass: process.env.EMAIL_PASS, // your Gmail App Password
-      },
-    });
 
     const html = `
       <div style="font-family: Arial, sans-serif; background: #000; padding: 30px;">
@@ -43,20 +37,21 @@ const sendSignupEmail = async ({ to, subject, username }) => {
       </div>
     `;
 
-    // Send email
-    await transporter.sendMail({
-      from: `"SmartTry Team" <${process.env.EMAIL_USER}>`,
+    const msg = {
       to,
+      from: process.env.EMAIL_FROM, // must be a verified sender email
       subject,
-      text: `Welcome ${username}, your signup is successful.`,
       html,
-    });
+      text: `Welcome ${username}, your signup is successful.`,
+    };
+
+    await sgMail.send(msg);
 
     console.log(`📧 Signup Email sent to ${to}`);
     return { success: true };
 
   } catch (error) {
-    console.error("❌ Signup Email failed:", error.message);
+    console.error("❌ Signup Email failed:", error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 };
