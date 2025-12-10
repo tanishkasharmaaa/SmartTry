@@ -82,7 +82,12 @@ const Login = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(signupData),
+        body: JSON.stringify({
+  name: signupData.name,
+  email: signupData.email,
+  password: signupData.password,
+  // confirmPassword is only used in frontend validation, not sent to backend
+}),
       });
      console.log(2)
       const data = await response.json();

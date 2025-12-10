@@ -7,7 +7,7 @@ const createUser = async (req, res) => {
   const body = req.body;
 
   try {
-    // CHECK USER ALREADY EXISTS
+    // CHECK IF USER ALREADY EXISTS
     const checkUser = await userModel.findOne({ email: body.email });
     if (checkUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -44,24 +44,27 @@ const createUser = async (req, res) => {
         : null,
     });
 
-    await user.save();
+    // AFTER saving user
+await user.save();
 
-    // REMOVE PASSWORD BEFORE SENDING RESPONSE
-    const userData = user.toObject();
-    delete userData.password;
+const userData = user.toObject();
+delete userData.password;
 
-    // Send response immediately (FAST)
-    res.status(201).json({
-      message: "User created successfully!",
-      user: userData,
-    });
+// Send email WITHOUT blocking signup
+sendSignupEmail(
+  body.email,
+  "Welcome to SmartTry!",
+  { username: body.name }
+).catch(err => {
+  console.log("❌ Email sending failed:", err.message);
+});
 
-    // --------------------------
-    // Send signup email asynchronously
-    // --------------------------
-    sendSignupEmail(body.email, "Welcome to SmartTry!", { username: body.name })
-      .then(() => console.log("Signup email sent"))
-      .catch((err) => console.error("Failed to send email:", err));
+// Respond instantly to frontend
+res.status(201).json({
+  message: "User created successfully",
+  user: userData,
+});
+
 
   } catch (error) {
     console.log("❌ createUser Error:", error);
