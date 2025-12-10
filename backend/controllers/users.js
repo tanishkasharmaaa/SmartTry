@@ -1,6 +1,7 @@
 const userModel = require("../model/users");
 const bcrypt = require("bcrypt");
 const {sendSignupEmail} = require("../services/sendSignupEmail")
+const emailQueue = require("../queue/emailQueue")
 
 // CREATE USER
 const createUser = async (req, res) => {
@@ -51,13 +52,15 @@ const userData = user.toObject();
 delete userData.password;
 
 // Send email WITHOUT blocking signup
-sendSignupEmail(
-  body.email,
-  "Welcome to SmartTry!",
-  { username: body.name }
-).catch(err => {
-  console.log("❌ Email sending failed:", err.message);
+await emailQueue.add({
+  to: body.email,
+  subject: "Welcome to SmartTry!",
+  message: `Hi ${body.name}, welcome to SmartTry! Your account has been created successfully.`,
+  productImage: null
 });
+
+
+
 
 // Respond instantly to frontend
 res.status(201).json({

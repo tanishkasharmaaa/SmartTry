@@ -3,6 +3,7 @@ const orderModel = require("../model/order");
 const productModel = require("../model/products");
 const stockModel = require("../model/stocks");
 const mongoose = require("mongoose");
+const emailQueue = require("../queue/emailQueue");
 
 /* ------------------------------------------------------
  🧾 CREATE ORDER FROM CART
@@ -77,10 +78,23 @@ const createOrderFromCart = async (req, res) => {
       ],
     });
 
+    
+
     // Clear cart
     cart.items = [];
     cart.totalAmount = 0;
     await cart.save();
+
+    // QUEUE: send order email
+await emailQueue.add("orderEmail", {
+  to: req.user.email,           // user email
+  subject: "Your order has been placed!",
+  data: {
+    message: `Your order has been successfully created and is now Processing.`,
+    productImage: order.items[0]?.productsId?.image || null
+  }
+});
+
 
     res.status(201).json({
       message: "Order created successfully",
@@ -157,6 +171,16 @@ const createOrder = async (req, res) => {
       ],
     });
 
+    await emailQueue.add("orderEmail", {
+  to: req.user.email,
+  subject: "Order Confirmed!",
+  data: {
+    message: `Your order was placed successfully. Status: Processing.`,
+    productImage: order.items[0]?.productsId?.image || null
+  }
+});
+
+
     res.status(201).json({
       message: "Order created successfully",
       order,
@@ -216,6 +240,16 @@ const cancelOrder = async (req, res) => {
       message: "Order was cancelled",
     });
     await order.save();
+
+    await emailQueue.add("orderEmail", {
+  to: req.user.email,
+  subject: "Order Cancelled",
+  data: {
+    message: `Your order has been cancelled and refund initiated.`,
+    productImage: order.items[0]?.productsId?.image || null
+  }
+});
+
 
     res.status(200).json({
       message: "Order cancelled",

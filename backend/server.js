@@ -12,6 +12,7 @@ dotenv.config();
 
 require("./config/passportSetup");
 require("./cron/orderTracker");
+require("./queue/emailWorker")
 
 const app = express();
 
