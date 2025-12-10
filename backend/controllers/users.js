@@ -51,32 +51,32 @@ const createUser = async (req, res) => {
     delete userData.password;
 
     // 📧 SEND SIGNUP EMAIL SAFELY
-    let emailSent = false;
-    try {
-      const emailResponse = await sendSignupEmail(
-        body.email,
-        "Welcome to SmartTry!",
-        { username: body.name }
-      );
+    // let emailSent = false;
+    // try {
+    //   const emailResponse = await sendSignupEmail(
+    //     body.email,
+    //     "Welcome to SmartTry!",
+    //     { username: body.name }
+    //   );
 
-      // CHECK IF EMAIL SEND SUCCEEDED
-      emailSent = emailResponse?.success || false;
-    } catch (emailError) {
-      console.log("❌ Signup email error:", emailError);
-    }
+    //   // CHECK IF EMAIL SEND SUCCEEDED
+    //   emailSent = emailResponse?.success || false;
+    // } catch (emailError) {
+    //   console.log("❌ Signup email error:", emailError);
+    // }
 
-    // ✅ RETURN RESPONSE
-    if (emailSent) {
-      res.status(201).json({
-        message: "User created successfully! Confirmation email sent.",
-        user: userData,
-      });
-    } else {
+    // // ✅ RETURN RESPONSE
+    // if (emailSent) {
+    //   res.status(201).json({
+    //     message: "User created successfully! Confirmation email sent.",
+    //     user: userData,
+    //   });
+    // } else {
       res.status(201).json({
         message: "User created successfully! But email could not be sent.",
         user: userData,
       });
-    }
+    // }
 
   } catch (error) {
     console.log("❌ createUser Error:", error);
