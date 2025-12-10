@@ -7,7 +7,7 @@ const createUser = async (req, res) => {
   const body = req.body;
 
   try {
-    // CHECK IF USER ALREADY EXISTS
+    // CHECK USER ALREADY EXISTS
     const checkUser = await userModel.findOne({ email: body.email });
     if (checkUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -50,33 +50,18 @@ const createUser = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    // 📧 SEND SIGNUP EMAIL SAFELY
-    // let emailSent = false;
-    // try {
-    //   const emailResponse = await sendSignupEmail(
-    //     body.email,
-    //     "Welcome to SmartTry!",
-    //     { username: body.name }
-    //   );
+    // Send response immediately (FAST)
+    res.status(201).json({
+      message: "User created successfully!",
+      user: userData,
+    });
 
-    //   // CHECK IF EMAIL SEND SUCCEEDED
-    //   emailSent = emailResponse?.success || false;
-    // } catch (emailError) {
-    //   console.log("❌ Signup email error:", emailError);
-    // }
-
-    // // ✅ RETURN RESPONSE
-    // if (emailSent) {
-    //   res.status(201).json({
-    //     message: "User created successfully! Confirmation email sent.",
-    //     user: userData,
-    //   });
-    // } else {
-      res.status(201).json({
-        message: "User created successfully! But email could not be sent.",
-        user: userData,
-      });
-    // }
+    // --------------------------
+    // Send signup email asynchronously
+    // --------------------------
+    sendSignupEmail(body.email, "Welcome to SmartTry!", { username: body.name })
+      .then(() => console.log("Signup email sent"))
+      .catch((err) => console.error("Failed to send email:", err));
 
   } catch (error) {
     console.log("❌ createUser Error:", error);
