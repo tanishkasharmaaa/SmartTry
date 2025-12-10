@@ -1,19 +1,30 @@
-const emailQueue = require("./emailQueue");
+const Queue = require("bull");
+require("dotenv").config();
+
+const { sendSignupEmail } = require("../services/sendSignupEmail");
 const { sendOrderUpdateEmail } = require("../utils/emailService");
 
-emailQueue.process(async (job) => {
-  const { to, subject, message, productImage } = job.data;
+const emailQueue = new Queue("emailQueue", process.env.REDIS_URL);
 
-  if (!to || !subject || !message) {
-    console.log("❌ Email sending failed: Missing required email fields");
-    return;
-  }
-
+emailQueue.process(async (job, done) => {
   try {
-    await sendOrderUpdateEmail({ to, subject, message, productImage });
-    console.log(`✅ Email sent to ${to}`);
+    const data = job.data;
+
+    if (data.type === "signup") {
+      await sendSignupEmail({
+        to: data.to,
+        subject: data.subject,
+        username: data.username,
+      });
+    }
+
+    if (data.type === "orderUpdate") {
+      await sendOrderUpdateEmail(data);
+    }
+
+    done();
   } catch (err) {
-    console.error("❌ Email worker error:", err);
-    throw err;
+    console.error("❌ Email job failed:", err);
+    done(err);
   }
 });

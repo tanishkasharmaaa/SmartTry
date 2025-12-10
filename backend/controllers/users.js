@@ -53,14 +53,11 @@ delete userData.password;
 
 // Send email WITHOUT blocking signup
 await emailQueue.add({
+  type: "signup",               // important
   to: body.email,
   subject: "Welcome to SmartTry!",
-  message: `Hi ${body.name}, welcome to SmartTry! Your account has been created successfully.`,
-  productImage: null
+  username: body.name,           // used inside sendSignupEmail
 });
-
-
-
 
 // Respond instantly to frontend
 res.status(201).json({
