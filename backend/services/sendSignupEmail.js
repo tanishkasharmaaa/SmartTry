@@ -10,6 +10,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendSignupEmail = async (to, subject, { username }) => {
+  console.log("hello.....")
   try {
     const html = `
     <div style="font-family: Arial, sans-serif; background: #f5f7fa; padding: 30px;">
