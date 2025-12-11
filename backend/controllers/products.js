@@ -147,20 +147,23 @@ const fetchProducts = async (req, res) => {
       page = 1,
       limit = 10,
     } = req.query;
+
     const query = {};
 
     if (category) query.category = category;
     if (size) query.size = size;
+
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
+    // FIXED REGEX
     if (search) {
       query.$or = [
-        { name: { $regex: search, $option: "i" } },
-        { description: { $regex: search, $option: "i" } },
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -168,6 +171,10 @@ const fetchProducts = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
 
+    // FIRST COUNT TOTAL PRODUCTS
+    const totalProducts = await productModel.countDocuments(query);
+
+    // THEN FETCH PAGINATED DATA
     const products = await productModel
       .find(query)
       .populate("stockId")
@@ -175,20 +182,24 @@ const fetchProducts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    const totalpages = Math.ceil(products.length / Number(limit));
+    // CORRECT TOTAL PAGES
+    const totalpages = Math.ceil(totalProducts / Number(limit));
 
     res.status(200).json({
       message: "✅ Products fetched successfully",
-      products,
-      page,
-      limit,
+      totalProducts,
+      page: Number(page),
+      limit: Number(limit),
       totalpages,
+      products,
     });
+
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 module.exports = {
   createProducts,
