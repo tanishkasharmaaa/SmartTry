@@ -75,7 +75,7 @@ const Login = () => {
         isClosable: true,
       });
     }
- console.log(1)
+    console.log(1);
     try {
       const response = await fetch("https://smarttry.onrender.com/api/users", {
         method: "POST",
@@ -83,13 +83,13 @@ const Login = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-  name: signupData.name,
-  email: signupData.email,
-  password: signupData.password,
-  // confirmPassword is only used in frontend validation, not sent to backend
-}),
+          name: signupData.name,
+          email: signupData.email,
+          password: signupData.password,
+          // confirmPassword is only used in frontend validation, not sent to backend
+        }),
       });
-     console.log(2)
+      console.log(2);
       const data = await response.json();
       console.log("Signup Response:", data);
       if (response.ok) {
@@ -129,7 +129,7 @@ const Login = () => {
   const handleLogin = async () => {
     try {
       const response = await fetch(
-        "https://smarttry.onrender.com/api/users/login",
+        "https://smarttry.onrender.com/api/login",
         {
           method: "POST",
           headers: {
@@ -140,7 +140,7 @@ const Login = () => {
       );
 
       const data = await response.json();
-
+       console.log(data)
       if (response.ok) {
         console.log("Login successful", data);
         onClose();
@@ -300,10 +300,10 @@ const Login = () => {
                 Login
               </Text>
 
-              <Input placeholder="Email" type="email" />
-              <Input placeholder="Password" type="password" />
+              <Input placeholder="Email" type="email" value={loginData.email} onChange={(e)=>setLoginData({...loginData,email:e.target.value})}/>
+              <Input placeholder="Password" type="password" value={loginData.password} onChange={(e)=>setLoginData({...loginData,password:e.target.value})}/>
 
-              <Button w="100%" bg={mainBtnBg} color={mainBtnColor}>
+              <Button w="100%" bg={mainBtnBg} color={mainBtnColor} onClick={handleLogin}>
                 Login
               </Button>
 
