@@ -144,22 +144,39 @@ const fetchProducts = async (req, res) => {
       search,
       minPrice,
       maxPrice,
+      gender,
       page = 1,
       limit = 10,
     } = req.query;
 
     const query = {};
 
+    // CATEGORY FILTER
     if (category) query.category = category;
-    if (size) query.size = size;
 
+    // BRAND FILTER
+    if (brand) query.brand = brand;
+
+    // GENDER FILTER (case insensitive → men / Men / MEN all match)
+    if (gender) {
+      query.gender = { $regex: `^${gender}$`, $options: "i" };
+      // or match partial → { $regex: gender, $options: "i" }
+    }
+
+    // SIZE FILTER
+    if (size) {
+      query.size = size;
+      query[`currentStock.${size}`] = { $gt: 0 };
+    }
+
+    // PRICE FILTER
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
-    // FIXED REGEX
+    // SEARCH FILTER
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -167,14 +184,12 @@ const fetchProducts = async (req, res) => {
       ];
     }
 
-    if (size) query[`currentStock.${size}`] = { $gt: 0 };
-
     const skip = (Number(page) - 1) * Number(limit);
 
-    // FIRST COUNT TOTAL PRODUCTS
+    // TOTAL PRODUCTS COUNT (IMPORTANT for pagination)
     const totalProducts = await productModel.countDocuments(query);
 
-    // THEN FETCH PAGINATED DATA
+    // FETCH PRODUCTS
     const products = await productModel
       .find(query)
       .populate("stockId")
@@ -187,13 +202,12 @@ const fetchProducts = async (req, res) => {
 
     res.status(200).json({
       message: "✅ Products fetched successfully",
-      totalProducts,
+      products,
       page: Number(page),
       limit: Number(limit),
+      totalProducts,
       totalpages,
-      products,
     });
-
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
