@@ -1,5 +1,6 @@
 const productModel = require("../model/products");
 const stockModel = require("../model/stocks");
+const redis = require("../config/redis");
 
 const createProducts = async (req, res) => {
   try {
@@ -151,32 +152,25 @@ const fetchProducts = async (req, res) => {
 
     const query = {};
 
-    // CATEGORY FILTER
     if (category) query.category = category;
-
-    // BRAND FILTER
     if (brand) query.brand = brand;
 
-    // GENDER FILTER (case insensitive → men / Men / MEN all match)
+    // Case insensitive gender (Men, men, MEN)
     if (gender) {
       query.gender = { $regex: `^${gender}$`, $options: "i" };
-      // or match partial → { $regex: gender, $options: "i" }
     }
 
-    // SIZE FILTER
     if (size) {
       query.size = size;
       query[`currentStock.${size}`] = { $gt: 0 };
     }
 
-    // PRICE FILTER
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
-    // SEARCH FILTER
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -186,10 +180,32 @@ const fetchProducts = async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
 
-    // TOTAL PRODUCTS COUNT (IMPORTANT for pagination)
+    // ------------------------------------------
+    // 🔥 REDIS CACHE KEY (unique to this request)
+    // ------------------------------------------
+    const cacheKey = `products:${JSON.stringify(req.query)}`;
+
+    // ------------------------------------------
+    // 🔥 Try reading from Redis
+    // ------------------------------------------
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+      console.log("⚡ Redis Cache Hit");
+
+      return res.status(200).json({
+        ...JSON.parse(cachedData),
+        fromCache: true,
+      });
+    }
+
+    console.log("⏳ Redis Cache Miss");
+
+    // ------------------------------------------
+    // DB CALLS
+    // ------------------------------------------
     const totalProducts = await productModel.countDocuments(query);
 
-    // FETCH PRODUCTS
     const products = await productModel
       .find(query)
       .populate("stockId")
@@ -197,23 +213,29 @@ const fetchProducts = async (req, res) => {
       .limit(Number(limit))
       .lean();
 
-    // CORRECT TOTAL PAGES
     const totalpages = Math.ceil(totalProducts / Number(limit));
 
-    res.status(200).json({
+    const response = {
       message: "✅ Products fetched successfully",
       products,
-      page: Number(page),
-      limit: Number(limit),
       totalProducts,
       totalpages,
-    });
+      page: Number(page),
+      limit: Number(limit),
+    };
+
+    // ------------------------------------------
+    // 🔥 SAVE RESPONSE IN REDIS FOR 10 MINUTES
+    // ------------------------------------------
+    await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 10);
+
+    return res.status(200).json(response);
+
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 module.exports = {
   createProducts,
