@@ -7,6 +7,7 @@ import Home from './pages/Home'
 import Mens from './pages/Mens'
 import Women  from './pages/Women'
 import Unisex from './pages/Unisex'
+import SingleProd from './pages/SingleProd'
 
 function App() {
 
@@ -19,6 +20,7 @@ function App() {
          <Route path='/women' element={<Women/>}/> 
          <Route path="/unisex" element={<Unisex/>}/>
          <Route path="/about" element={<About/>}/>
+         <Route path="/product/:id" element={<SingleProd/>}/>
       </Routes>
     </>
   )

@@ -1,6 +1,7 @@
 const productModel = require("../model/products");
 const stockModel = require("../model/stocks");
 const redis = require("../config/redis");
+const mongoose = require("mongoose");
 
 const createProducts = async (req, res) => {
   try {
@@ -172,10 +173,17 @@ const fetchProducts = async (req, res) => {
     }
 
     if (search) {
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(search);
+
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } },
       ];
+
+      // 🔥 If search is a valid Mongo ObjectId, add ID search
+      if (isValidObjectId) {
+        query.$or.push({ _id: search });
+      }
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -230,7 +238,6 @@ const fetchProducts = async (req, res) => {
     await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 10);
 
     return res.status(200).json(response);
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
