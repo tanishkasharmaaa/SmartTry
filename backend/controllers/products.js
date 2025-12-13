@@ -21,6 +21,7 @@ const createProducts = async (req, res) => {
       sellerId: userId,
       sellerName,
       stockId: null,
+      reviewsId:[]
     });
 
     // 🟢 2️⃣ Create stock entry linked to the product

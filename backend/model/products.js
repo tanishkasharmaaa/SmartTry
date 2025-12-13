@@ -24,6 +24,13 @@ const productsScehma = new mongoose.Schema({
     enum: ["S", "M", "L", "XL", "XXL", "Free Size"],
     required: true,
   },
+  reviewsId: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "reviews",
+      required:false
+    },
+  ],
   createAt: { type: Date, default: Date.now },
 });
 

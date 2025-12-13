@@ -140,6 +140,7 @@ const Mens = () => {
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
+            console.log(parsed.data)
             setProducts(parsed.data.products);
             setTotalPages(parsed.data.totalpages);
             setLoading(false);
