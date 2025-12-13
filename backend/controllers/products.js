@@ -217,6 +217,7 @@ const fetchProducts = async (req, res) => {
     const products = await productModel
       .find(query)
       .populate("stockId")
+      .populate("sellerId","name email image")
       .skip(skip)
       .limit(Number(limit))
       .lean();
