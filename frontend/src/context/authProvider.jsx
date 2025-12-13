@@ -1,5 +1,6 @@
 import { useState,useEffect } from "react";
 import AuthContext from "./authContext";
+import Cookies from "js-cookie"
 
 const AuthProvider = ({children}) => {
     const [user, setUser] = useState(() => {
@@ -36,9 +37,8 @@ const AuthProvider = ({children}) => {
             }
         }
 
-        if(!user){
-            fetchProfile();
-        }
+       fetchProfile();
+
     },[]);
 
     const logout = async() => {
@@ -50,6 +50,7 @@ const AuthProvider = ({children}) => {
         } catch (error) {
             console.warn("Logout request failed:", error.message);
         }
+        // Cookies.remove("token");
         setUser(null);
         setAuthenticated(false);
         localStorage.removeItem("userInfo");

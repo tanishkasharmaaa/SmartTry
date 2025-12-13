@@ -68,4 +68,40 @@ const getAllStocks = async(req,res) => {
     }
 }
 
-module.exports = {addStock, removeStock, getAllStocks}
+const checkStockAvailability = async (req, res) => {
+  try {
+    const { productId, size } = req.query;
+
+    if (!productId || !size) {
+      return res.status(400).json({
+        message: "productId and size are required",
+      });
+    }
+
+    const stockEntry = await stockModel.findOne({ productsId:productId });
+
+    if (!stockEntry) {
+      return res.status(404).json({
+        message: "Stock entry not found for this product",
+        inStock: false,
+      });
+    }
+
+    const availableStock = stockEntry.currentStock[size] || 0;
+
+    return res.status(200).json({
+      productId,
+      size,
+      inStock: availableStock > 0,
+      availableStock,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+
+module.exports = {addStock, removeStock, getAllStocks, checkStockAvailability}

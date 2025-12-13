@@ -16,11 +16,14 @@ import {
 } from "@chakra-ui/react";
 import { MoonIcon, SunIcon, HamburgerIcon } from "@chakra-ui/icons";
 import { useContext } from "react";
+import {CiSearch} from "react-icons/ci";
 import AuthContext from "../context/authContext";
 import ThemeContext from "../context/themeContext";
 import { motion } from "framer-motion";
+import { SearchIcon } from "@chakra-ui/icons";
 import { Link } from "react-router-dom";
 import Login from "./login";
+import SearchBox from "./searchBox";
 // import { clsx } from "clsx";
 
 const ThemeToggleButton5 = ({ onClick, isDark }) => {
@@ -89,7 +92,6 @@ const ThemeToggleButton5 = ({ onClick, isDark }) => {
 
 const Navbar = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { authenticated, logout } = useContext(AuthContext);
   const { light, setLight } = useContext(ThemeContext);
 
   const handleTheme = () => setLight(!light);
@@ -137,6 +139,8 @@ const Navbar = () => {
         >
           SM△RTTRY
         </Heading>
+        
+
 
         {/* DESKTOP LINKS */}
         <Box
@@ -145,6 +149,10 @@ const Navbar = () => {
           alignItems="center"
           fontWeight="semibold"
         >
+          {/* <Text>
+            <SearchIcon boxSize={5}  cursor="pointer" _hover={{ color: hoverColor }} />
+          </Text> */}
+          <SearchBox/>
           {["Men", "Women", "Unisex", "About"].map((item) => (
             <Text
               as={Link}
@@ -158,22 +166,7 @@ const Navbar = () => {
             </Text>
           ))}
 
-          {/* Signup / Logout */}
-          {/* <Button
-            bg={textColor}
-            color={bgColor}
-            border="1px solid"
-            borderColor={textColor}
-            _hover={{ bg: bgColor, color: textColor }}
-            onClick={() =>
-              authenticated
-                ? logout()
-                : (window.location.href =
-                    "https://smarttry.onrender.com/auth/google")
-            }
-          >
-            {authenticated ? "Logout" : "Signup"}
-          </Button> */}
+          
           <Login/>
         </Box>
       </Box>
@@ -190,6 +183,7 @@ const Navbar = () => {
           }}
         />
       </Box>
+      
 
       {/* MOBILE DRAWER */}
       <Drawer placement="left" onClose={onClose} isOpen={isOpen}>

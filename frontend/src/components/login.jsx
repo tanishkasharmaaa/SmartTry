@@ -12,23 +12,33 @@ import {
   HStack,
   Divider,
   useToast,
+  WrapItem,
+  Avatar,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem
 } from "@chakra-ui/react";
 import { useContext, useState } from "react";
 import AuthContext from "../context/authContext";
 import { FcGoogle } from "react-icons/fc";
+import Cookies from "js-cookie";
+
 
 const Login = () => {
   const { authenticated, logout } = useContext(AuthContext);
+  const userInfo = authenticated ? JSON.parse(localStorage.getItem("userInfo")) : null;
 
-  // -------------------------------
-  // ✅ ALL HOOKS MUST BE AT THE TOP
-  // -------------------------------
   const bg = useColorModeValue("white", "black");
   const googleBorder = useColorModeValue("gray.300", "gray.600");
   const googleHover = useColorModeValue("gray.100", "gray.700");
 
   const mainBtnBg = useColorModeValue("black", "white");
   const mainBtnColor = useColorModeValue("white", "black");
+
+  const toastBg = useColorModeValue("gray.100", "gray.800");
+  const toastColor = useColorModeValue("black", "white");
+  const toastBorder = useColorModeValue("gray.300", "gray.600");
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [mode, setMode] = useState("main");
@@ -49,135 +59,148 @@ const Login = () => {
 
   const toast = useToast();
 
+  const showToast = (title, description, status) => {
+    toast({
+      title,
+      description,
+      status,
+      duration: 2500,
+      isClosable: true,
+      position: "top",
+      containerStyle: {
+        background: toastBg,
+        color: toastColor,
+        border: `1px solid ${toastBorder}`,
+        borderRadius: "8px",
+        padding: "10px",
+      },
+    });
+  };
+
   const handleClose = () => {
     setMode("main");
     onClose();
   };
 
+  // ---------------- SIGNUP ----------------
   const handleCreateAccount = async () => {
-    // VALIDATION
     if (signupData.password.length < 6) {
-      return toast({
-        title: "Password too short",
-        description: "Password must be at least 6 characters.",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
+      return showToast(
+        "Password too short",
+        "Password must be at least 6 characters.",
+        "warning"
+      );
     }
 
     if (signupData.password !== signupData.confirmPassword) {
-      return toast({
-        title: "Passwords do not match",
-        description: "Password and confirm password must be the same.",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
+      return showToast(
+        "Passwords do not match",
+        "Password and confirm password must be the same.",
+        "warning"
+      );
     }
-    console.log(1);
+
     try {
       const response = await fetch("https://smarttry.onrender.com/api/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: signupData.name,
-          email: signupData.email,
-          password: signupData.password,
-          // confirmPassword is only used in frontend validation, not sent to backend
-        }),
+        body: JSON.stringify(signupData),
       });
-      console.log(2);
-      const data = await response.json();
-      console.log("Signup Response:", data);
-      if (response.ok) {
-        toast({
-          title: "Account Created",
-          description: "Your account has been created successfully.",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
 
+      const data = await response.json();
+
+      if (response.ok) {
+        showToast("Account Created", "Your account has been created.", "success");
         setMode("login");
       } else {
-        toast({
-          title: "Signup Failed",
-          description: data.message || "Unable to create account.",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+        showToast("Signup Failed", data.message || "Unable to create account.", "error");
       }
     } catch (error) {
-      toast({
-        title: "Network Error",
-        description: "Something went wrong. Try again later.",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      console.log("Signup Error:", error);
+      console.log(error);
+      showToast("Network Error", "Something went wrong. Try again later.", "error");
     }
   };
 
-  // ---------------------------
-  // ⭐ LOGIN HANDLER
-  // ---------------------------
+  // ---------------- LOGIN ----------------
   const handleLogin = async () => {
     try {
-      const response = await fetch(
-        "https://smarttry.onrender.com/api/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(loginData),
-        }
-      );
+      const response = await fetch("https://smarttry.onrender.com/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(loginData),
+      });
 
       const data = await response.json();
-       console.log(data)
+
       if (response.ok) {
-        console.log("Login successful", data);
-        onClose();
+        localStorage.setItem("userInfo", JSON.stringify(data.user));
+
+        Cookies.set("token", data.token, {
+          expires: 7,
+          secure: true,
+          sameSite: "none",
+        });
+
+        showToast("Login Successful 🎉", "Welcome back!", "success");
+
+        handleClose(); // close modal
       } else {
-        console.error("Login error:", data.message);
+        showToast("Login Failed ❌", data.message || "Invalid credentials", "error");
       }
     } catch (error) {
-      console.error("Login Error:", error);
+      console.log(error)
+      showToast("Network Error", "Unable to connect to server", "error");
     }
   };
 
   return (
     <Box>
-      {/* MAIN BTN */}
-      <Button
-        bg={mainBtnBg}
-        color={mainBtnColor}
-        px="20px"
-        borderRadius="md"
-        _hover={{ opacity: 0.9 }}
-        onClick={() => (authenticated ? logout() : onOpen())}
-      >
-        {authenticated ? "Logout" : "Login / Signup"}
-      </Button>
+      {/* BUTTON OR AVATAR */}
+      {authenticated ? (<>
+      
+        <Menu>
+    <MenuButton>
+      <Avatar size="sm" name={userInfo?.photo||name} src="" cursor="pointer" />
+    </MenuButton>
+
+    <MenuList bg={bg}>
+      <MenuItem bg={bg}>Profile</MenuItem>
+      <MenuItem bg={bg}>Orders</MenuItem>
+      <MenuItem bg={bg}>Settings</MenuItem>
+      <MenuItem bg={bg} onClick={logout} color="red.400">
+        Logout
+      </MenuItem>
+    </MenuList>
+  </Menu>
+      </>) : (
+        <Button
+          bg={mainBtnBg}
+          color={mainBtnColor}
+          px="20px"
+          borderRadius="md"
+          _hover={{ opacity: 0.9 }}
+          onClick={onOpen}   // FIXED
+        >
+          Login / SignUp
+        </Button>
+      )}
 
       {/* MODAL */}
-      <Modal isOpen={isOpen} onClose={handleClose} bg={mainBtnBg} isCentered>
+      <Modal isOpen={isOpen} onClose={handleClose} isCentered>
         <ModalOverlay />
         <ModalContent bg={bg} borderRadius="lg" p="20px" minW="350px">
-          {/* MAIN MENU */}
+          {/* MAIN */}
           {mode === "main" && (
             <VStack spacing={5}>
               <Text fontSize="xl" fontWeight="bold">
-                Welcome to SmartTry 👗
+                Welcome to SM△RTTRY
               </Text>
 
-              {/* GOOGLE BUTTON */}
               <HStack
                 cursor="pointer"
                 w="100%"
@@ -210,17 +233,13 @@ const Login = () => {
                 Create Account
               </Button>
 
-              <Button
-                w="100%"
-                variant="outline"
-                onClick={() => setMode("login")}
-              >
+              <Button w="100%" variant="outline" onClick={() => setMode("login")}>
                 Login with Email
               </Button>
             </VStack>
           )}
 
-          {/* SIGNUP FORM */}
+          {/* SIGNUP */}
           {mode === "signup" && (
             <VStack spacing={4}>
               <Text fontSize="xl" fontWeight="bold">
@@ -230,19 +249,13 @@ const Login = () => {
               <Input
                 placeholder="Name"
                 value={signupData.name}
-                onChange={(e) =>
-                  setSignupData({ ...signupData, name: e.target.value })
-                }
-                required
+                onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
               />
               <Input
                 placeholder="Email"
                 type="email"
                 value={signupData.email}
-                onChange={(e) =>
-                  setSignupData({ ...signupData, email: e.target.value })
-                }
-                required
+                onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
               />
               <Input
                 placeholder="Password"
@@ -251,57 +264,48 @@ const Login = () => {
                 onChange={(e) =>
                   setSignupData({ ...signupData, password: e.target.value })
                 }
-                required
               />
               <Input
                 placeholder="Confirm Password"
                 type="password"
                 value={signupData.confirmPassword}
                 onChange={(e) =>
-                  setSignupData({
-                    ...signupData,
-                    confirmPassword: e.target.value,
-                  })
+                  setSignupData({ ...signupData, confirmPassword: e.target.value })
                 }
-                required
               />
 
-              <Button
-                w="100%"
-                bg={mainBtnBg}
-                color={mainBtnColor}
-                onClick={handleCreateAccount}
-              >
+              <Button w="100%" bg={mainBtnBg} color={mainBtnColor} onClick={handleCreateAccount}>
                 Sign Up
               </Button>
 
-              <Text
-                fontSize="sm"
-                color="blue.400"
-                cursor="pointer"
-                onClick={() => setMode("login")}
-              >
+              <Text fontSize="sm" color="blue.400" cursor="pointer" onClick={() => setMode("login")}>
                 Already have an account? Login
               </Text>
-              <Text
-                fontSize="sm"
-                cursor="pointer"
-                onClick={() => setMode("main")}
-              >
+              <Text fontSize="sm" cursor="pointer" onClick={() => setMode("main")}>
                 ← Back
               </Text>
             </VStack>
           )}
 
-          {/* LOGIN FORM */}
+          {/* LOGIN */}
           {mode === "login" && (
             <VStack spacing={4}>
               <Text fontSize="xl" fontWeight="bold">
                 Login
               </Text>
 
-              <Input placeholder="Email" type="email" value={loginData.email} onChange={(e)=>setLoginData({...loginData,email:e.target.value})}/>
-              <Input placeholder="Password" type="password" value={loginData.password} onChange={(e)=>setLoginData({...loginData,password:e.target.value})}/>
+              <Input
+                placeholder="Email"
+                type="email"
+                value={loginData.email}
+                onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+              />
+              <Input
+                placeholder="Password"
+                type="password"
+                value={loginData.password}
+                onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+              />
 
               <Button w="100%" bg={mainBtnBg} color={mainBtnColor} onClick={handleLogin}>
                 Login
@@ -315,11 +319,7 @@ const Login = () => {
               >
                 Create a new account
               </Text>
-              <Text
-                fontSize="sm"
-                cursor="pointer"
-                onClick={() => setMode("main")}
-              >
+              <Text fontSize="sm" cursor="pointer" onClick={() => setMode("main")}>
                 ← Back
               </Text>
             </VStack>
