@@ -20,7 +20,7 @@ function App() {
          <Route path='/women' element={<Women/>}/> 
          <Route path="/unisex" element={<Unisex/>}/>
          <Route path="/about" element={<About/>}/>
-         <Route path="/product/:id" element={<SingleProd/>}/>
+         <Route path="/products/:slug" element={<SingleProd/>}/>
       </Routes>
     </>
   )

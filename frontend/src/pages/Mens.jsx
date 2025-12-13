@@ -21,6 +21,7 @@ import {
 import { useEffect, useState, useRef, useMemo } from "react";
 import Pagination from "../components/pagination";
 import { ArrowRightIcon } from "@chakra-ui/icons";
+import { useNavigate } from "react-router-dom";
 
 const Mens = () => {
   const [products, setProducts] = useState([]);
@@ -36,6 +37,7 @@ const Mens = () => {
   const searchTimeoutRef = useRef(null);
   const [searchInput, setSearchInput] = useState("");
   const [sort, setSort] = useState("");
+  const navigate = useNavigate();
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -316,7 +318,9 @@ const Mens = () => {
                 borderRadius="md"
                 overflow="hidden"
                 bg={bgColor}
-                _hover={{ shadow: "lg" }}
+                _hover={{ shadow: "lg", transform: "scale(1.02)" }}
+                transition="all 0.2s ease"
+                onClick={() => navigate(`/products/${product._id}-${product.name}`)}
               >
                 <Box
                   aspectRatio={1}
