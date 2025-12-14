@@ -13,8 +13,19 @@ import {
   Flex,
   Spacer,
   Badge,
+  useColorModeValue,
+  Divider,
+  Textarea,
+  Progress,
 } from "@chakra-ui/react";
 import { StarIcon } from "@chakra-ui/icons";
+import ImageMagnifier from "../components/imageMagnifier";
+import {
+  CheckCircleIcon,
+  RepeatIcon,
+  LockIcon,
+  TimeIcon,
+} from "@chakra-ui/icons";
 
 const SingleProd = () => {
   const { slug } = useParams();
@@ -23,6 +34,23 @@ const SingleProd = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState("");
+  const [reviews, setReviews] = useState([]);
+  const [userRating, setUserRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Background color based on light/dark mode
+  const addToCartBg = useColorModeValue("black", "gray.700");
+  const addToCartColor = useColorModeValue("white", "white");
+  const addToCartHover = useColorModeValue("gray.800", "gray.500");
+
+  const buyNowBg = useColorModeValue("gray.200", "gray.600");
+  const buyNowColor = useColorModeValue("black", "white");
+  const buyNowHover = useColorModeValue("gray.300", "gray.500");
+
+  const textColor = useColorModeValue("gray.700", "gray.200");
+  const infoTextColor = useColorModeValue("gray.600", "gray.400");
+  const iconColor = useColorModeValue("gray.700", "gray.300");
 
   useEffect(() => {
     let isMounted = true;
@@ -50,6 +78,30 @@ const SingleProd = () => {
     };
   }, [productId]);
 
+  useEffect(() => {
+  if (!productId) return;
+
+  fetch(`https://smarttry.onrender.com/api/reviews/${productId}`)
+    .then(res => res.json())
+    .then(data => setReviews(data.reviews || []))
+    .catch(console.error);
+}, [productId]);
+
+
+  // Total stock across all sizes
+  const totalStock = product?.stockId?.currentStock
+    ? Object.values(product.stockId.currentStock).reduce(
+        (sum, qty) => sum + Number(qty),
+        0
+      )
+    : 0;
+
+  // Stock for selected size
+  const stockQty =
+    selectedSize && product?.stockId?.currentStock
+      ? Number(product.stockId.currentStock[selectedSize])
+      : null;
+
   if (!loading && !product) {
     return <Text fontSize="xl">Product not found</Text>;
   }
@@ -67,13 +119,9 @@ const SingleProd = () => {
         <Flex direction={{ base: "column", md: "row" }} gap={8}>
           {/* ------------------ LEFT: Product Image ------------------ */}
           <Box flex="1">
-            <Image
+            <ImageMagnifier
               src={product.image?.replace(/\n/g, "").trim()}
               alt={product.name}
-              borderRadius="md"
-              objectFit="cover"
-              w="100%"
-              maxH="500px"
             />
           </Box>
 
@@ -84,7 +132,7 @@ const SingleProd = () => {
             </Text>
 
             <HStack mb={2}>
-              <Text fontSize="2xl" fontWeight="semibold" color="gray.700">
+              <Text fontSize="2xl" fontWeight="semibold" color={textColor}>
                 ₹{product.price}
               </Text>
               {product.discount && (
@@ -97,10 +145,10 @@ const SingleProd = () => {
               {[...Array(5)].map((_, i) => (
                 <StarIcon
                   key={i}
-                  color={i < (product.rating || 4) ? "yellow.400" : "gray.300"}
+                  color={i < product.averageRating ? "yellow.400" : "gray.300"}
                 />
               ))}
-              <Text>({product.ratingCount || 10} reviews)</Text>
+              <Text>({product.totalReviews} reviews)</Text>
             </HStack>
 
             {/* Product Description */}
@@ -132,27 +180,167 @@ const SingleProd = () => {
 
             {/* Buttons */}
             <HStack spacing={4} mb={4}>
-              <Button colorScheme="blue">Add to Cart</Button>
-              <Button colorScheme="green">Buy Now</Button>
+              <Button
+                bg={addToCartBg}
+                color={addToCartColor}
+                _hover={{ bg: addToCartHover }}
+                isDisabled={
+                  !selectedSize || (stockQty !== null && stockQty === 0)
+                }
+              >
+                Add to Cart
+              </Button>
+
+              <Button
+                bg={buyNowBg}
+                color={buyNowColor}
+                _hover={{ bg: buyNowHover }}
+                isDisabled={
+                  !selectedSize || (stockQty !== null && stockQty === 0)
+                }
+              >
+                Buy Now
+              </Button>
             </HStack>
 
             {/* Seller Info */}
             <Box>
               <Text fontWeight="semibold">Seller:</Text>
-              <Text>{product.seller || "Default Seller"}</Text>
+              <Text>
+                {product?.sellerId?.name
+                  ? product.sellerId.name.charAt(0).toUpperCase() +
+                    product.sellerId.name.slice(1)
+                  : "Default Seller"}
+              </Text>
             </Box>
 
             {/* Additional Info */}
-            <Spacer />
+            {/* <Spacer /> */}
             <Box mt={4}>
               <Text fontWeight="semibold">Availability:</Text>
-              <Text>
-                {product.currentStock?.[selectedSize] || "Out of Stock"}
-              </Text>
+
+              {!selectedSize ? (
+                <Text color={totalStock > 0 ? "green.500" : "red.400"}>
+                  {totalStock > 0
+                    ? `${totalStock} items in stock`
+                    : "Out of Stock"}
+                </Text>
+              ) : stockQty === 0 ? (
+                <Text color="red.400">Out of Stock</Text>
+              ) : (
+                <Text color="green.500">{stockQty} in stock</Text>
+              )}
             </Box>
+            <Divider my={5} />
+
+            {/* ------------------ Refund & Delivery Info ------------------ */}
+            <VStack
+              align="start"
+              spacing={3}
+              fontSize="sm"
+              color={infoTextColor}
+            >
+              <HStack>
+                <RepeatIcon color={iconColor} />
+                <Text>
+                  <b>7 Days Easy Return</b> – Return or exchange within 7 days
+                </Text>
+              </HStack>
+
+              <HStack>
+                <CheckCircleIcon color={iconColor} />
+                <Text>
+                  <b>100% Genuine Product</b> – Directly from verified sellers
+                </Text>
+              </HStack>
+
+              <HStack>
+                <LockIcon color={iconColor} />
+                <Text>
+                  <b>Secure Payments</b> – UPI, Cards, Net Banking supported
+                </Text>
+              </HStack>
+
+              <HStack>
+                <TimeIcon color={iconColor} />
+                <Text>
+                  <b>Delivery in 3–5 Business Days</b>
+                </Text>
+              </HStack>
+
+              <HStack>
+                <CheckCircleIcon color={iconColor} />
+                <Text>
+                  <b>Cash on Delivery Available</b>
+                </Text>
+              </HStack>
+            </VStack>
           </Box>
         </Flex>
       )}
+      <Divider my={8} />
+
+{/* ------------------ CUSTOMER REVIEWS ------------------ */}
+<Box>
+  <Text fontSize="2xl" fontWeight="bold" mb={4}>
+    Customer Reviews
+  </Text>
+
+  {/* Rating Summary */}
+  <HStack mb={6}>
+    <Text fontSize="4xl" fontWeight="bold">
+      {/* {product.averageRating || 0} */}
+    </Text>
+    <VStack align="start" spacing={1}>
+      <HStack>
+        {[...Array(5)].map((_, i) => (
+          <StarIcon
+            key={i}
+            color={i <0 ? "yellow.400" : "gray.300"}
+          />
+        ))}
+      </HStack>
+      <Text fontSize="sm">
+        {product.totalReviews || 0} ratings 
+      </Text>
+    </VStack>
+  </HStack>
+
+  {/* Reviews List */}
+  <VStack align="start" spacing={5}>
+    {reviews.length === 0 ? (
+      <Text color="gray.500">No reviews yet</Text>
+    ) : (
+      reviews.map((review) => (
+        <Box key={review._id} w="100%" p={4} borderWidth="1px" borderRadius="md">
+          <HStack mb={1}>
+            {[...Array(5)].map((_, i) => (
+              <StarIcon
+                key={i}
+                color={i < review.rating ? "yellow.400" : "gray.300"}
+                boxSize={3}
+              />
+            ))}
+          </HStack>
+
+          <Text fontWeight="semibold">
+            {review.userId?.name
+              ? review.userId.name.charAt(0).toUpperCase() +
+                review.userId.name.slice(1)
+              : "Anonymous"}
+          </Text>
+
+          <Text fontSize="sm" color="gray.500">
+            {new Date(review.createdAt).toLocaleDateString()}
+          </Text>
+
+          <Text mt={2}>{review.comment}</Text>
+        </Box>
+      ))
+    )}
+  </VStack>
+</Box>
+
     </Box>
   );
 };

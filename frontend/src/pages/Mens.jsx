@@ -157,7 +157,7 @@ const Mens = () => {
           `https://smarttry.onrender.com/api/products/paginated?${query}`
         );
         const data = await res.json();
-
+        console.log(data);
         setProducts(data.products || []);
         setTotalPages(data.totalpages || 1);
 
