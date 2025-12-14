@@ -31,28 +31,30 @@ const productsScehma = new mongoose.Schema({
       required:false
     },
   ],
+  averageRating: {
+  type: Number,
+  default: 0,
+  min: 0,
+  max: 5,
+},
+
+totalReviews: {
+  type: Number,
+  default: 0,
+},
   createAt: { type: Date, default: Date.now },
 });
 
-productsScehma.pre("remove", async (next) => {
+productsScehma.pre("remove", async function (next) {
   try {
-    console.log(`Deleting all the stocks of product: ${this._id}`);
-    await stockModel.deleteMany({ productsIddd: this._id });
+    await stockModel.deleteMany({ productsId: this._id });
+    await reviewsModel.deleteMany({ productsId: this._id });
     next();
   } catch (error) {
     next(error);
   }
 });
 
-productsScehma.pre("remove", async (next) => {
-  try {
-    console.log(`Deleting all the reviews of products: ${this._id}`);
-    await reviewsModel.deleteMany({ productsIdd: reviewsId });
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
 
 productsScehma.index({ category: 1 });
 productsScehma.index({ brand: 1 });

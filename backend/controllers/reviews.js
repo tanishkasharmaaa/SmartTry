@@ -10,21 +10,19 @@ const addReviews = async (req, res) => {
     // 1️⃣ Validate product
     const product = await productModel.findById(productsId);
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      return res.status(404).json({ message: "Product not found" });
     }
 
-    // 2️⃣ Prevent duplicate review by same user
+    // 2️⃣ Prevent duplicate review
     const alreadyReviewed = await reviewsModel.findOne({
       productsId,
       userId,
     });
 
     if (alreadyReviewed) {
-      return res.status(400).json({
-        message: "You have already reviewed this product",
-      });
+      return res
+        .status(400)
+        .json({ message: "You have already reviewed this product" });
     }
 
     // 3️⃣ Create review
@@ -35,12 +33,24 @@ const addReviews = async (req, res) => {
       comment,
     });
 
-    // 4️⃣ Push reviewId into product
-    await productModel.findByIdAndUpdate(
-      productsId,
-      { $push: { reviewsId: review._id } },
-      { new: true }
-    );
+    // 4️⃣ Recalculate rating stats
+    const stats = await reviewsModel.aggregate([
+      { $match: { productsId: product._id } },
+      {
+        $group: {
+          _id: "$productsId",
+          avgRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 5️⃣ Update product with stats + reviewId
+    await productModel.findByIdAndUpdate(productsId, {
+      $push: { reviewsId: review._id },
+      averageRating: stats[0]?.avgRating || 0,
+      totalReviews: stats[0]?.totalReviews || 0,
+    });
 
     res.status(201).json({
       message: "Review added successfully",
