@@ -93,6 +93,7 @@ const ThemeToggleButton5 = ({ onClick, isDark }) => {
 const Navbar = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { light, setLight } = useContext(ThemeContext);
+  const {authenticated} = useContext(AuthContext)
 
   const handleTheme = () => setLight(!light);
 
@@ -167,7 +168,7 @@ const Navbar = () => {
           ))}
 
           
-          <Login/>
+          <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
         </Box>
       </Box>
 
@@ -220,23 +221,7 @@ const Navbar = () => {
             ))}
 
             {/* AUTH BUTTON */}
-            {/* <Button
-              mt={5}
-              bg={textColor}
-              color={bgColor}
-              border="1px solid"
-              borderColor={textColor}
-              _hover={{ bg: bgColor, color: textColor }}
-              onClick={() =>
-                authenticated
-                  ? logout()
-                  : (location.href =
-                      "https://smarttry.onrender.com/auth/google")
-              }
-            >
-              {authenticated ? "Logout" : "Signup"}
-            </Button> */}
-            <Login/>
+            <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
           </DrawerBody>
         </DrawerContent>
       </Drawer>

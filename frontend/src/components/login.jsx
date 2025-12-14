@@ -25,7 +25,7 @@ import { FcGoogle } from "react-icons/fc";
 import Cookies from "js-cookie";
 
 
-const Login = () => {
+const Login = ({buttonName}) => {
   const { authenticated, logout } = useContext(AuthContext);
   const userInfo = authenticated ? JSON.parse(localStorage.getItem("userInfo")) : null;
 
@@ -173,7 +173,7 @@ const Login = () => {
       <MenuItem bg={bg}>Orders</MenuItem>
       <MenuItem bg={bg}>Settings</MenuItem>
       <MenuItem bg={bg} onClick={logout} color="red.400">
-        Logout
+        {buttonName}
       </MenuItem>
     </MenuList>
   </Menu>
@@ -186,7 +186,7 @@ const Login = () => {
           _hover={{ opacity: 0.9 }}
           onClick={onOpen}   // FIXED
         >
-          Login / SignUp
+          {buttonName}
         </Button>
       )}
 
