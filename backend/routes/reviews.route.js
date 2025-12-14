@@ -7,7 +7,7 @@ const {
 const { authMiddleware } = require("../middleware/authMiddleware");
 const reviewsRouter = express.Router();
 
-reviewsRouter.get("/", getReviewsByproductsId);
+reviewsRouter.get("/:productsId", getReviewsByproductsId);
 reviewsRouter.post("/add-review/:productsId", authMiddleware, addReviews);
 reviewsRouter.delete("/delete-review/:reviewId", authMiddleware, deleteReview);
 

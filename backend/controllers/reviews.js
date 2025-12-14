@@ -68,7 +68,7 @@ const getReviewsByproductsId = async (req, res) => {
     const { productsId } = req.params;
 
     // 1️⃣ Validate product existence (important)
-    const productExists = await productModel.exists({ _id: productsId });
+    const productExists = await productModel.find({ productsId: productsId });
     if (!productExists) {
       return res.status(404).json({
         message: "Product not found",
