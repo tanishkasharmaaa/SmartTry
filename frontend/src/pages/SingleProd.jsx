@@ -48,7 +48,6 @@ const SingleProd = () => {
   const [selectedQty, setSelectedQty] = useState(1);
   const [alreadyInCart, setAlreadyInCart] = useState(false);
 
-
   // Background color based on light/dark mode
   const addToCartBg = useColorModeValue("black", "gray.700");
   const addToCartColor = useColorModeValue("white", "white");
@@ -113,66 +112,65 @@ const SingleProd = () => {
     reviews.some((review) => review?.userId?.email === user?.email);
 
   const handleSubmitReview = async () => {
-  if (!userRating || !comment.trim()) {
-    showToast({
-      title: "Review incomplete",
-      description: "Please give a rating and write a comment",
-      type: "error",
-    });
-    return;
-  }
-
-  try {
-    setSubmitting(true);
-
-    const res = await fetch(
-      `https://smarttry.onrender.com/api/reviews/add-review/${productId}`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          rating: userRating,
-          comment,
-        }),
-      }
-    );
-
-    const data = await res.json();
-
-    if (!res.ok) {
+    if (!userRating || !comment.trim()) {
       showToast({
-        title: "Failed to submit review",
-        description: data.message || "Something went wrong",
+        title: "Review incomplete",
+        description: "Please give a rating and write a comment",
         type: "error",
       });
       return;
     }
 
-    // ✅ Optimistic UI update
-    setReviews((prev) => [data.review, ...prev]);
-    setUserRating(0);
-    setComment("");
+    try {
+      setSubmitting(true);
 
-    showToast({
-      title: "Review submitted",
-      description: "Thank you for sharing your feedback",
-      type: "success",
-    });
-  } catch (error) {
-    console.error(error);
-    showToast({
-      title: "Network error",
-      description: "Please try again later",
-      type: "error",
-    });
-  } finally {
-    setSubmitting(false);
-  }
-};
+      const res = await fetch(
+        `https://smarttry.onrender.com/api/reviews/add-review/${productId}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            rating: userRating,
+            comment,
+          }),
+        }
+      );
 
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast({
+          title: "Failed to submit review",
+          description: data.message || "Something went wrong",
+          type: "error",
+        });
+        return;
+      }
+
+      // ✅ Optimistic UI update
+      setReviews((prev) => [data.review, ...prev]);
+      setUserRating(0);
+      setComment("");
+
+      showToast({
+        title: "Review submitted",
+        description: "Thank you for sharing your feedback",
+        type: "success",
+      });
+    } catch (error) {
+      console.error(error);
+      showToast({
+        title: "Network error",
+        description: "Please try again later",
+        type: "error",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!productId) return;
@@ -210,78 +208,118 @@ const SingleProd = () => {
       : 0;
 
   const addToCart = async () => {
-  if (!selectedSize) {
-    showToast({
-      title: "Size required",
-      description: "Please select a size",
-      type: "warning",
-    });
-    return;
-  }
-
-  if (!selectedQty) {
-    showToast({
-      title: "Quantity required",
-      description: "Please select quantity",
-      type: "warning",
-    });
-    return;
-  }
-
-  if (alreadyInCart) return; // 🛑 hard stop
-
-  try {
-    const res = await fetch(
-      `https://smarttry.onrender.com/api/cart/${productId}`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          size: selectedSize,
-          quantity: selectedQty,
-        }),
-      }
-    );
-
-    const data = await res.json();
-
-    // 🟡 Already in cart
-    if (res.status === 409) {
-      setAlreadyInCart(true);
-
+    if (!selectedSize) {
       showToast({
-        title: "Already in cart",
-        description: data.message || "This product is already in your cart",
+        title: "Size required",
+        description: "Please select a size",
         type: "warning",
       });
       return;
     }
 
-    if (!res.ok) {
-      throw new Error(data.message || "Failed to add product");
+    if (!selectedQty) {
+      showToast({
+        title: "Quantity required",
+        description: "Please select quantity",
+        type: "warning",
+      });
+      return;
     }
 
-    // ✅ Success
-    setAlreadyInCart(true);
+    if (alreadyInCart) return; 
 
-    showToast({
-      title: "Added to cart",
-      description: "Item successfully added",
-      type: "success",
-    });
-  } catch (error) {
-    showToast({
-      title: "Error",
-      description: error.message || "Could not add item to cart",
-      type: "error",
-    });
-  }
-};
+    try {
+      const res = await fetch(
+        `https://smarttry.onrender.com/api/cart/${productId}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            size: selectedSize,
+            quantity: selectedQty,
+          }),
+        }
+      );
 
-useEffect(() => {
-  setAlreadyInCart(false);
-}, [selectedSize]);
+      const data = await res.json();
+
+      // 🟡 Already in cart
+      if (res.status === 409) {
+        setAlreadyInCart(true);
+
+        showToast({
+          title: "Already in cart",
+          description: data.message || "This product is already in your cart",
+          type: "warning",
+        });
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to add product");
+      }
+
+      // ✅ Success
+      setAlreadyInCart(true);
+
+      showToast({
+        title: "Added to cart",
+        description: "Item successfully added",
+        type: "success",
+      });
+    } catch (error) {
+      showToast({
+        title: "Error",
+        description: error.message || "Could not add item to cart",
+        type: "error",
+      });
+    }
+  };
+
+  useEffect(() => {
+  const checkIfInCart = async () => {
+    if (!selectedSize) {
+      setAlreadyInCart(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        "https://smarttry.onrender.com/api/cart",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (res.ok && data.cartItems) {
+        // Check if current product with selected size exists
+        const exists = data.cartItems.some(
+          (item) =>
+            item.productId === productId &&
+            item.size === selectedSize
+        );
+
+        setAlreadyInCart(exists);
+      } else {
+        setAlreadyInCart(false);
+      }
+    } catch (error) {
+      console.error("Error checking cart:", error);
+      setAlreadyInCart(false);
+    }
+  };
+
+  checkIfInCart();
+}, [selectedSize, productId]);
+
+
 
   if (!loading && !product) {
     return <Text fontSize="xl">Product not found</Text>;
@@ -401,19 +439,18 @@ useEffect(() => {
                 <Login buttonName="Add to Cart" />
               ) : (
                 <Button
-  bg={alreadyInCart ? "gray.600" : addToCartBg}
-  color="white"
-  _hover={{ bg: alreadyInCart ? "gray.600" : addToCartHover }}
-  isDisabled={
-    alreadyInCart ||
-    !selectedSize ||
-    (stockQty !== null && stockQty === 0)
-  }
-  onClick={addToCart}
->
-  {alreadyInCart ? "Already in Cart" : "Add to Cart"}
-</Button>
-
+                  bg={alreadyInCart ? "gray.600" : addToCartBg}
+                  color="white"
+                  _hover={{ bg: alreadyInCart ? "gray.600" : addToCartHover }}
+                  isDisabled={
+                    alreadyInCart ||
+                    !selectedSize ||
+                    (stockQty !== null && stockQty === 0)
+                  }
+                  onClick={addToCart}
+                >
+                  {alreadyInCart ? "Already in Cart" : "Add to Cart"}
+                </Button>
               )}
 
               <Button

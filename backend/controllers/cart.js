@@ -155,32 +155,48 @@ const updateCartItem = async (req, res) => {
   }
 };
 
-// 📦 Get All Cart Items
+// 📦 Get All Cart Items (Updated)
 const getAllCartItems = async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const cart = await cartModel
       .findOne({ userId })
-      .populate("items.productsId");
+      .populate("items.productsId"); // Populate product details
 
-    console.log(cart);
-
+    // If no cart exists, return empty array instead of 404
     if (!cart) {
-      return res.status(404).json({ message: "Cart not found for this user" });
+      return res.status(200).json({
+        message: "Cart is empty",
+        cartItems: [],
+        totalAmount: 0,
+        totalItems: 0,
+      });
     }
+
+    // Map items to clean structure for frontend
+    const cartItems = cart.items.map((item) => ({
+      productId: item.productsId._id,
+      name: item.productsId.name,
+      image: item.productsId.image,
+      size: item.size,
+      quantity: item.quantity,
+      priceAtAdd: item.priceAtAdd,
+    }));
 
     res.status(200).json({
       message: "✅ Cart items fetched successfully",
-      cartItems: cart.items,
+      cartItems,
       totalAmount: cart.totalAmount,
       totalItems: cart.items.length,
+      lastUpdated: cart.updatedAt,
     });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 module.exports = {
   addToCart,
