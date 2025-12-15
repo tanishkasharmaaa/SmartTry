@@ -7,15 +7,20 @@ import theme from './theme.js'
 import {BrowserRouter} from "react-router-dom"
 import AuthProvider from './context/authProvider.jsx'
 import ThemeProvider from './context/themeProvider.jsx'
+import { ToastProvider } from './context/toastProvider.jsx'
 
 createRoot(document.getElementById('root')).render(
   <ChakraProvider theme={theme}>
     <ThemeProvider>
+     <ToastProvider>
    <BrowserRouter>
    <AuthProvider>
+    
     <App />
+    
     </AuthProvider>
   </BrowserRouter>
+  </ToastProvider> 
   </ThemeProvider>
   </ChakraProvider>,
 )

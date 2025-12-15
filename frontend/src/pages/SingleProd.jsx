@@ -29,6 +29,7 @@ import {
 import { useContext } from "react";
 import AuthContext from "../context/authContext";
 import Login from "../components/login";
+import { useToast } from "../context/useToast";
 
 const SingleProd = () => {
   const { slug } = useParams();
@@ -43,8 +44,10 @@ const SingleProd = () => {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
-  const { authenticated } = useContext(AuthContext);
-  // const cacheToken =
+  const { authenticated, user } = useContext(AuthContext);
+  const [selectedQty, setSelectedQty] = useState(1);
+  const [alreadyInCart, setAlreadyInCart] = useState(false);
+
 
   // Background color based on light/dark mode
   const addToCartBg = useColorModeValue("black", "gray.700");
@@ -61,18 +64,36 @@ const SingleProd = () => {
 
   const reviewBg = useColorModeValue("gray.50", "gray.800");
 
+  const { showToast } = useToast();
+
   useEffect(() => {
     let isMounted = true;
+    const CACHE_KEY = `product_${productId}`;
 
     const fetchProduct = async () => {
       try {
+        // 1️⃣ Check cache first
+        const cachedProduct = localStorage.getItem(CACHE_KEY);
+        if (cachedProduct) {
+          console.log(JSON.parse(cachedProduct));
+          setProduct(JSON.parse(cachedProduct));
+          setLoading(false);
+          return;
+        }
+
+        // 2️⃣ Fetch from API
         const res = await fetch(
           `https://smarttry.onrender.com/api/products/paginated?search=${productId}`
         );
         const data = await res.json();
         if (!isMounted) return;
-        console.log(data.products[0]);
-        setProduct(data.products?.[0] || null);
+
+        const product = data.products?.[0] || null;
+
+        // 3️⃣ Save to cache
+        localStorage.setItem(CACHE_KEY, JSON.stringify(product));
+
+        setProduct(product);
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -87,51 +108,87 @@ const SingleProd = () => {
     };
   }, [productId]);
 
+  const hasUserReviewed =
+    authenticated &&
+    reviews.some((review) => review?.userId?.email === user?.email);
+
   const handleSubmitReview = async () => {
-    if (!userRating || !comment.trim()) return;
+  if (!userRating || !comment.trim()) {
+    showToast({
+      title: "Review incomplete",
+      description: "Please give a rating and write a comment",
+      type: "error",
+    });
+    return;
+  }
 
-    try {
-      setSubmitting(true);
-      const res = await fetch(
-        `https://smarttry.onrender.com/api/reviews/add-review/${productId}`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            rating: userRating,
-            comment,
-          }),
-        }
-      );
-      const data = await res.json();
-      console.log(data)
+  try {
+    setSubmitting(true);
 
-      if (!res.ok) {
-        console.log(data.message || "Failed to submit review");
-        return;
+    const res = await fetch(
+      `https://smarttry.onrender.com/api/reviews/add-review/${productId}`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rating: userRating,
+          comment,
+        }),
       }
+    );
 
-      setReviews((prev) => [data.review, ...prev]);
-      setUserRating(0);
-      setComment("");
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setSubmitting(false);
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast({
+        title: "Failed to submit review",
+        description: data.message || "Something went wrong",
+        type: "error",
+      });
+      return;
     }
-  };
+
+    // ✅ Optimistic UI update
+    setReviews((prev) => [data.review, ...prev]);
+    setUserRating(0);
+    setComment("");
+
+    showToast({
+      title: "Review submitted",
+      description: "Thank you for sharing your feedback",
+      type: "success",
+    });
+  } catch (error) {
+    console.error(error);
+    showToast({
+      title: "Network error",
+      description: "Please try again later",
+      type: "error",
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   useEffect(() => {
     if (!productId) return;
 
     fetch(`https://smarttry.onrender.com/api/reviews/${productId}`)
       .then((res) => res.json())
-      .then((data) => setReviews(data.reviews || []))
+      .then((data) => {
+        console.log("Fetched reviews:", data.reviews);
+        setReviews(data.reviews || []);
+      })
       .catch(console.error);
   }, [productId]);
+
+  useEffect(() => {
+    setSelectedQty(1);
+  }, [selectedSize]);
 
   // Total stock across all sizes
   const totalStock = product?.stockId?.currentStock
@@ -146,6 +203,85 @@ const SingleProd = () => {
     selectedSize && product?.stockId?.currentStock
       ? Number(product.stockId.currentStock[selectedSize])
       : null;
+
+  const availableQty =
+    selectedSize && product?.stockId?.currentStock
+      ? Number(product.stockId.currentStock[selectedSize])
+      : 0;
+
+  const addToCart = async () => {
+  if (!selectedSize) {
+    showToast({
+      title: "Size required",
+      description: "Please select a size",
+      type: "warning",
+    });
+    return;
+  }
+
+  if (!selectedQty) {
+    showToast({
+      title: "Quantity required",
+      description: "Please select quantity",
+      type: "warning",
+    });
+    return;
+  }
+
+  if (alreadyInCart) return; // 🛑 hard stop
+
+  try {
+    const res = await fetch(
+      `https://smarttry.onrender.com/api/cart/${productId}`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          size: selectedSize,
+          quantity: selectedQty,
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    // 🟡 Already in cart
+    if (res.status === 409) {
+      setAlreadyInCart(true);
+
+      showToast({
+        title: "Already in cart",
+        description: data.message || "This product is already in your cart",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to add product");
+    }
+
+    // ✅ Success
+    setAlreadyInCart(true);
+
+    showToast({
+      title: "Added to cart",
+      description: "Item successfully added",
+      type: "success",
+    });
+  } catch (error) {
+    showToast({
+      title: "Error",
+      description: error.message || "Could not add item to cart",
+      type: "error",
+    });
+  }
+};
+
+useEffect(() => {
+  setAlreadyInCart(false);
+}, [selectedSize]);
 
   if (!loading && !product) {
     return <Text fontSize="xl">Product not found</Text>;
@@ -206,6 +342,7 @@ const SingleProd = () => {
               <Text fontWeight="semibold" mb={1}>
                 Select Size:
               </Text>
+
               <Select
                 placeholder="Select size"
                 value={selectedSize}
@@ -221,20 +358,63 @@ const SingleProd = () => {
                     )
                   )}
               </Select>
+
+              {!selectedSize && (
+                <Text fontSize="sm" color="red.400" mt={1}>
+                  Please select a size
+                </Text>
+              )}
+            </Box>
+
+            <Box mb={4}>
+              <Text fontWeight="semibold" mb={1}>
+                Select Quantity:
+              </Text>
+
+              <Select
+                placeholder={
+                  selectedSize ? "Select quantity" : "Select size first"
+                }
+                value={selectedQty}
+                onChange={(e) => setSelectedQty(Number(e.target.value))}
+                w="150px"
+                isDisabled={!selectedSize || availableQty === 0}
+              >
+                {selectedSize &&
+                  [...Array(availableQty)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+              </Select>
+
+              {selectedSize && availableQty === 0 && (
+                <Text fontSize="sm" color="red.400" mt={1}>
+                  Out of stock for selected size
+                </Text>
+              )}
             </Box>
 
             {/* Buttons */}
             <HStack spacing={4} mb={4}>
-              <Button
-                bg={addToCartBg}
-                color={addToCartColor}
-                _hover={{ bg: addToCartHover }}
-                isDisabled={
-                  !selectedSize || (stockQty !== null && stockQty === 0)
-                }
-              >
-                Add to Cart
-              </Button>
+              {!authenticated ? (
+                <Login buttonName="Add to Cart" />
+              ) : (
+                <Button
+  bg={alreadyInCart ? "gray.600" : addToCartBg}
+  color="white"
+  _hover={{ bg: alreadyInCart ? "gray.600" : addToCartHover }}
+  isDisabled={
+    alreadyInCart ||
+    !selectedSize ||
+    (stockQty !== null && stockQty === 0)
+  }
+  onClick={addToCart}
+>
+  {alreadyInCart ? "Already in Cart" : "Add to Cart"}
+</Button>
+
+              )}
 
               <Button
                 bg={buyNowBg}
@@ -339,7 +519,10 @@ const SingleProd = () => {
           <VStack align="start" spacing={1}>
             <HStack>
               {[...Array(5)].map((_, i) => (
-                <StarIcon key={i} color={i < 0 ? "yellow.400" : "gray.300"} />
+                <StarIcon
+                  key={i}
+                  color={0 < product?.averageRating ? "yellow.400" : "gray.300"}
+                />
               ))}
             </HStack>
             <Text fontSize="sm">{product?.totalReviews} reviews</Text>
@@ -348,76 +531,64 @@ const SingleProd = () => {
 
         {/* ---------------- WRITE A REVIEW ---------------- */}
 
-        {authenticated ? (
-          <>
-            <Box
-              w="100%"
-              p={5}
-              borderWidth="1px"
-              borderRadius="md"
-              mb={6}
-              bg={reviewBg}
-            >
-              <Text fontSize="lg" fontWeight="semibold" mb={3}>
-                Write a review
-              </Text>
+        {!authenticated && <Login buttonName="Login to add a review" />}
 
-              {/* Star Rating Input */}
-              <HStack spacing={1} mb={3}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <StarIcon
-                    key={star}
-                    cursor="pointer"
-                    boxSize={6}
-                    color={
-                      (hoverRating || userRating) >= star
-                        ? "yellow.400"
-                        : "gray.300"
-                    }
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                    onClick={() => setUserRating(star)}
-                  />
-                ))}
-                <Text ml={2} fontSize="sm" color="gray.500">
-                  {userRating ? `${userRating} / 5` : "Select rating"}
-                </Text>
-              </HStack>
+        {authenticated && !hasUserReviewed && (
+          <Box
+            w="100%"
+            p={5}
+            borderWidth="1px"
+            borderRadius="md"
+            mb={6}
+            bg={reviewBg}
+          >
+            <Text fontSize="lg" fontWeight="semibold" mb={3}>
+              Write a review
+            </Text>
 
-              {/* Comment Box */}
-              <Box mb={4}>
-                <textarea
-                  style={{
-                    width: "100%",
-                    minHeight: "100px",
-                    padding: "10px",
-                    borderRadius: "6px",
-                    border: "1px solid #CBD5E0",
-                    background: "transparent",
-                  }}
-                  placeholder="Share your experience with this product..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+            {/* Star Rating */}
+            <HStack spacing={1} mb={3}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <StarIcon
+                  key={star}
+                  cursor="pointer"
+                  boxSize={6}
+                  color={
+                    (hoverRating || userRating) >= star
+                      ? "yellow.400"
+                      : "gray.300"
+                  }
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  onClick={() => setUserRating(star)}
                 />
-              </Box>
+              ))}
+            </HStack>
 
-              {/* Submit Button */}
-              <Button
-                bg="black"
-                color="white"
-                _hover={{ bg: "gray.800" }}
-                isDisabled={!userRating || !comment.trim()}
-                isLoading={submitting}
-                onClick={handleSubmitReview}
-              >
-                Submit Review
-              </Button>
-            </Box>
-          </>
-        ) : (
-          <>
-          <Login buttonName={!authenticated&&"Login to add reviews"}/>
-          </>
+            <Textarea
+              placeholder="Share your experience..."
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              mb={4}
+            />
+
+            <Button
+              bg="black"
+              color="white"
+              _hover={{ bg: "gray.800" }}
+              isDisabled={!userRating || !comment.trim()}
+              isLoading={submitting}
+              onClick={handleSubmitReview}
+            >
+              Submit Review
+            </Button>
+          </Box>
+        )}
+
+        {authenticated && hasUserReviewed && (
+          <Text mb={4} color="green.500" fontWeight="medium">
+            ✅ You have already reviewed this product
+          </Text>
         )}
 
         {/* Reviews List */}

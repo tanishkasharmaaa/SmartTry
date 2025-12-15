@@ -8,35 +8,45 @@ const addToCart = async (req, res) => {
     const { quantity = 1, size } = req.body;
     const userId = req.user.userId;
 
-    // 1️⃣ Find product to get its price
+    // 1️⃣ Validate size
+    if (!size) {
+      return res.status(400).json({ message: "Size is required" });
+    }
+
+    // 2️⃣ Find product
     const product = await productModel.findById(productsId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // 2️⃣ Find or create cart for user
+    // 3️⃣ Find or create cart
     let cart = await cartModel.findOne({ userId });
     if (!cart) {
       cart = new cartModel({ userId, items: [], totalAmount: 0 });
     }
 
-    // 3️⃣ Check if item (same product + same size) already exists
+    // 4️⃣ Check if SAME product + SAME size already exists
     const existingItem = cart.items.find(
-      (item) => item.productsId.toString() === productsId && item.size === size
+      (item) =>
+        item.productsId.toString() === productsId &&
+        item.size === size
     );
 
     if (existingItem) {
-      existingItem.quantity += quantity;
-    } else {
-      cart.items.push({
-        productsId,
-        quantity,
-        size,
-        priceAtAdd: product.price,
+      return res.status(409).json({
+        message: "Product already in cart",
       });
     }
 
-    // 4️⃣ Update totalAmount
+    // 5️⃣ Add new item
+    cart.items.push({
+      productsId,
+      quantity,
+      size,
+      priceAtAdd: product.price,
+    });
+
+    // 6️⃣ Update totalAmount
     cart.totalAmount = cart.items.reduce(
       (total, item) => total + item.quantity * item.priceAtAdd,
       0
@@ -44,12 +54,16 @@ const addToCart = async (req, res) => {
 
     await cart.save();
 
-    res.status(200).json({ message: "Product added to cart", cart });
+    return res.status(200).json({
+      message: "Product added to cart",
+      cart,
+    });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 // ❌ Remove from Cart (single item or clear entire cart)
 const removeFromCart = async (req, res) => {

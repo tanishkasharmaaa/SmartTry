@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import Pagination from "../components/pagination";
-import { ArrowRightIcon } from "@chakra-ui/icons";
+import { ArrowRightIcon,StarIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 
 const Mens = () => {
@@ -341,13 +341,34 @@ const Mens = () => {
                 </Box>
 
                 <Box p={2}>
-                  <Text fontWeight="semibold" isTruncated>
-                    {product.name}
-                  </Text>
-                  <Text fontWeight="bold" color="gray.400">
-                    ₹{product.price}
-                  </Text>
-                </Box>
+  <Text fontWeight="semibold" isTruncated>
+    {product.name}
+  </Text>
+
+  {/* ⭐ Rating Stack */}
+  <HStack spacing={1} mt={1}>
+    {[...Array(5)].map((_, i) => (
+      <StarIcon
+        key={i}
+        boxSize={3}
+        color={
+          i < Math.round(product.averageRating)
+            ? "yellow.400"
+            : "gray.300"
+        }
+      />
+    ))}
+
+    <Text fontSize="xs" color="gray.500">
+      ({product.averageRating || 0})
+    </Text>
+  </HStack>
+
+  {/* 💰 Price */}
+  <Text fontWeight="bold" color="gray.400" mt={1}>
+    ₹{product.price}
+  </Text>
+</Box>
               </Box>
             ))}
       </SimpleGrid>
