@@ -110,7 +110,7 @@ const SingleProd = () => {
       console.log(data)
 
       if (!res.ok) {
-        alert(data.message || "Failed to submit review");
+        console.log(data.message || "Failed to submit review");
         return;
       }
 
@@ -118,7 +118,7 @@ const SingleProd = () => {
       setUserRating(0);
       setComment("");
     } catch (error) {
-      console.error(error);
+      console.log(error);
     } finally {
       setSubmitting(false);
     }
