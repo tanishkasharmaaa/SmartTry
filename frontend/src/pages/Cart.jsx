@@ -43,6 +43,7 @@ const Cart = () => {
           credentials: "include",
         });
         const data = await res.json();
+        console.log(data)
         setCartItems(data.cartItems || []);
         setTotalAmount(data.totalAmount || 0);
       } catch (error) {
@@ -148,7 +149,7 @@ const Cart = () => {
                     {/* CONTENT */}
                     <Box flex="1">
                       <Text fontWeight="semibold" fontSize="lg" color={textColor}>
-                        {item.productsId?.name}
+                        {item?.product?.name}
                       </Text>
 
                       <Text fontSize="sm" color={mutedText}>
@@ -213,7 +214,7 @@ const Cart = () => {
                         <Button size="xs" variant="link" colorScheme="red">
                           Delete
                         </Button>
-                        <Link to={`/product/${item.productsId?._id}`}>
+                        <Link to={`/products/${item.product?._id}-${item.product?.name}`}>
                           <Button size="xs" variant="link">View product</Button>
                         </Link>
                       </HStack>
