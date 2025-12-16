@@ -16,7 +16,7 @@ cartRouter.delete(
   removeFromCart
 );
 cartRouter.patch(
-  "/update-cartItem/:cartId/:cartItemId",
+  "/update-cartItem/:userId/:cartItemId",
   authMiddleware,
   updateCartItem
 );
