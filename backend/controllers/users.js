@@ -1,14 +1,16 @@
 const userModel = require("../model/users");
+const cartModel = require("../model/cart");
 const bcrypt = require("bcrypt");
-const {sendSignupEmail} = require("../services/sendSignupEmail")
-const emailQueue = require("../queue/emailQueue")
+const emailQueue = require("../queue/emailQueue");
 
+// ============================
 // CREATE USER
+// ============================
 const createUser = async (req, res) => {
   const body = req.body;
 
   try {
-    // CHECK IF USER ALREADY EXISTS
+    // CHECK IF USER EXISTS
     const checkUser = await userModel.findOne({ email: body.email });
     if (checkUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -16,14 +18,16 @@ const createUser = async (req, res) => {
 
     // PASSWORD VALIDATION
     if (!body.password || body.password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
     }
 
     // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
     // CREATE USER
-    const user = new userModel({
+    const user = await userModel.create({
       name: body.name,
       email: body.email,
       password: hashedPassword,
@@ -45,44 +49,54 @@ const createUser = async (req, res) => {
         : null,
     });
 
-    // AFTER saving user
-await user.save();
+    // ============================
+    // CREATE CART FOR USER (IMPORTANT)
+    // ============================
+    const cart = await cartModel.create({
+      userId: user._id,
+      items: [],
+      totalAmount: 0,
+    });
 
-const userData = user.toObject();
-delete userData.password;
+    user.cartId = cart._id;
+    await user.save();
 
-// Send email WITHOUT blocking signup
-await emailQueue.add({
-  type: "signup",               // important
-  to: body.email,
-  subject: "Welcome to SmartTry!",
-  username: body.name,           // used inside sendSignupEmail
-});
+    // REMOVE PASSWORD FROM RESPONSE
+    const userData = user.toObject();
+    delete userData.password;
 
-// Respond instantly to frontend
-res.status(201).json({
-  message: "User created successfully",
-  user: userData,
-});
+    // SEND EMAIL ASYNC (NON BLOCKING)
+    await emailQueue.add({
+      type: "signup",
+      to: body.email,
+      subject: "Welcome to SmartTry!",
+      username: body.name,
+    });
 
-
+    res.status(201).json({
+      message: "User created successfully",
+      user: userData,
+    });
   } catch (error) {
     console.log("❌ createUser Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-
+// ============================
 // UPDATE USER
+// ============================
 const updateUser = async (req, res) => {
   try {
     const userId = req.params.userId;
     const body = req.body;
-    const user = await userModel.findById(userId);
 
+    const user = await userModel.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const hashedPassword = body.password ? await bcrypt.hash(body.password, 10) : user.password;
+    const hashedPassword = body.password
+      ? await bcrypt.hash(body.password, 10)
+      : user.password;
 
     user.name = body.name ?? user.name;
     user.email = body.email ?? user.email;
@@ -95,13 +109,34 @@ const updateUser = async (req, res) => {
 
     if (user.seller) {
       user.sellerInfo = {
-        sellerName: body.sellerInfo?.sellerName ?? user.sellerInfo?.sellerName ?? "",
-        gstNumber: body.sellerInfo?.gstNumber ?? user.sellerInfo?.gstNumber ?? "",
-        businessName: body.sellerInfo?.businessName ?? user.sellerInfo?.businessName ?? "",
-        businessAddress: body.sellerInfo?.businessAddress ?? user.sellerInfo?.businessAddress ?? "",
-        contactNumber: body.sellerInfo?.contactNumber ?? user.sellerInfo?.contactNumber ?? "",
-        website: body.sellerInfo?.website ?? user.sellerInfo?.website ?? "",
-        description: body.sellerInfo?.description ?? user.sellerInfo?.description ?? "",
+        sellerName:
+          body.sellerInfo?.sellerName ??
+          user.sellerInfo?.sellerName ??
+          "",
+        gstNumber:
+          body.sellerInfo?.gstNumber ??
+          user.sellerInfo?.gstNumber ??
+          "",
+        businessName:
+          body.sellerInfo?.businessName ??
+          user.sellerInfo?.businessName ??
+          "",
+        businessAddress:
+          body.sellerInfo?.businessAddress ??
+          user.sellerInfo?.businessAddress ??
+          "",
+        contactNumber:
+          body.sellerInfo?.contactNumber ??
+          user.sellerInfo?.contactNumber ??
+          "",
+        website:
+          body.sellerInfo?.website ??
+          user.sellerInfo?.website ??
+          "",
+        description:
+          body.sellerInfo?.description ??
+          user.sellerInfo?.description ??
+          "",
       };
     } else {
       user.sellerInfo = null;
@@ -112,27 +147,35 @@ const updateUser = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    res.status(200).json({ message: "User updated successfully", user: userData });
+    res
+      .status(200)
+      .json({ message: "User updated successfully", user: userData });
   } catch (error) {
     console.log("❌ updateUser Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
+// ============================
 // DELETE USER
+// ============================
 const deleteUser = async (req, res) => {
   try {
     const userId = req.params.userId;
-    const user = await userModel.findByIdAndDelete(userId);
-    if (user) res.status(200).json({ message: "User deleted successfully" });
-    else res.status(404).json({ message: "User not found" });
+
+    await userModel.findByIdAndDelete(userId);
+    await cartModel.findOneAndDelete({ userId });
+
+    res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+// ============================
 // GET USER BY ID
+// ============================
 const getUserById = async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -142,11 +185,18 @@ const getUserById = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    res.status(200).json({ message: "User fetched successfully", user: userData });
+    res
+      .status(200)
+      .json({ message: "User fetched successfully", user: userData });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-module.exports = { createUser, updateUser, deleteUser, getUserById };
+module.exports = {
+  createUser,
+  updateUser,
+  deleteUser,
+  getUserById,
+};

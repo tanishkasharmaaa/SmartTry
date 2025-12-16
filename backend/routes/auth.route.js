@@ -3,6 +3,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const generateToken = require("../utils/generateToken");
 const userModel = require("../model/users");
+const cartModel = require("../model/cart"); // ✅ IMPORT CART
 require("dotenv").config();
 
 const authRouter = express.Router();
@@ -11,13 +12,13 @@ const authRouter = express.Router();
     GOOGLE AUTH ROUTES
 ================================ */
 
-// 1️⃣ Google Login URL
+// 1️⃣ Google Login
 authRouter.get(
   "/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
-// 2️⃣ Callback URL
+// 2️⃣ Google Callback
 authRouter.get(
   "/google/callback",
   passport.authenticate("google", { failureRedirect: "/" }),
@@ -25,46 +26,52 @@ authRouter.get(
     try {
       const email = req.user.emails[0].value;
       const name = req.user.displayName;
-      const image = req.user.photos?.[0]?.value;
+      const image = req.user.photos?.[0]?.value || "";
 
-      // Check if user exists
       let user = await userModel.findOne({ email });
 
+      // ---------- CREATE USER ----------
       if (!user) {
-        user = new userModel({
+        user = await userModel.create({
           name,
           email,
           password: "",
-          image: image || "",
+          image,
           seller: false,
-          birthday:"",
-          gender:"",
           bio: "",
           sellerInfo: {},
         });
+      }
 
+      // ---------- CREATE CART IF NOT EXISTS ----------
+      if (!user.cartId) {
+        const cart = await cartModel.create({
+          userId: user._id,
+          items: [],
+          totalAmount: 0,
+        });
+
+        user.cartId = cart._id;
         await user.save();
       }
 
-      // Create JWT
-      const token = await generateToken(
+      // ---------- CREATE JWT ----------
+      const token = generateToken(
         user.email,
         user.name,
         user._id,
         user.seller
       );
 
-      // Set cookie
+      // ---------- SET COOKIE ----------
       res.cookie("token", token, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // ---- IMPORTANT ----
-      // Redirect user to frontend
-      return res.redirect(process.env.CLIENT_URL); // frontend home page
+      return res.redirect(process.env.CLIENT_URL);
     } catch (error) {
       console.error("Google Auth Error:", error);
       res.status(500).json({ message: "Server error during login" });
@@ -77,26 +84,26 @@ authRouter.get(
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-  console.log(token, "tokennnnn");
   if (!token) return res.status(401).json({ message: "No token provided" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-   console.log(decoded, "decodeddd");
+
     const user = await userModel
       .findById(decoded.userId)
-      .select("name email image userId");
+      .select("name email image cartId seller");
 
-    console.log(user, "userprofile");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
       name: user.name,
       email: user.email,
       photo: user.image,
-      userId:user._id
+      userId: user._id,
+      cartId: user.cartId, // ✅ IMPORTANT
+      seller: user.seller,
     });
-  } catch {
+  } catch (err) {
     res.status(401).json({ message: "Invalid token" });
   }
 });
@@ -111,12 +118,9 @@ authRouter.get("/logout", (req, res) => {
     sameSite: "none",
   });
 
-
-
   req.logout(() => {
-    return res.redirect(process.env.CLIENT_URL)
+    return res.redirect(process.env.CLIENT_URL);
   });
-
 });
 
 module.exports = authRouter;
