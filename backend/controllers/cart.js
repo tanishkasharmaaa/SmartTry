@@ -164,7 +164,7 @@ const getAllCartItems = async (req, res) => {
       .findOne({ userId })
       .populate({
         path: "items.productsId",
-        select: "name image price sizes brand",
+        select: "name image price sizes brand currentStock",
       });
 
     // Empty cart
