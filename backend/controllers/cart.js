@@ -8,30 +8,43 @@ const addToCart = async (req, res) => {
     const { quantity = 1, size } = req.body;
     const userId = req.user.userId;
 
+    // 1️⃣ Validate size
     if (!size) {
       return res.status(400).json({ message: "Size is required" });
     }
 
-    const product = await productModel.findById(productsId);
+    // 2️⃣ Fetch product WITH stock populated
+    const product = await productModel
+      .findById(productsId)
+      .populate("stockId", "currentStock");
+
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // 3️⃣ Validate stock for selected size
     const stockForSize =
       product.stockId?.currentStock?.[size] ?? 0;
 
-    if (stockForSize < quantity) {
+    if (stockForSize <= 0) {
+      return res.status(400).json({
+        message: `Size ${size} is out of stock`,
+      });
+    }
+
+    if (quantity > stockForSize) {
       return res.status(400).json({
         message: `Only ${stockForSize} items available for size ${size}`,
       });
     }
 
-    // ✅ Cart MUST already exist
-    const cart = await cartModel.findOne({ userId });
+    // 4️⃣ Find or create cart
+    let cart = await cartModel.findOne({ userId });
     if (!cart) {
-      return res.status(500).json({ message: "Cart not found for user" });
+      cart = new cartModel({ userId, items: [], totalAmount: 0 });
     }
 
+    // 5️⃣ Prevent duplicate product+size
     const existingItem = cart.items.find(
       (item) =>
         item.productsId.toString() === productsId &&
@@ -44,6 +57,7 @@ const addToCart = async (req, res) => {
       });
     }
 
+    // 6️⃣ Add item
     cart.items.push({
       productsId,
       quantity,
@@ -51,6 +65,7 @@ const addToCart = async (req, res) => {
       priceAtAdd: product.price,
     });
 
+    // 7️⃣ Recalculate total
     cart.totalAmount = cart.items.reduce(
       (total, item) => total + item.quantity * item.priceAtAdd,
       0
@@ -63,7 +78,7 @@ const addToCart = async (req, res) => {
       cart,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Add to cart error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

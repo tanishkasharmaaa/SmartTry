@@ -58,6 +58,7 @@ const Cart = () => {
 
   // ---------------- UPDATE CART ITEM ----------------
   const updateCartItem = async (cartItemId, updates) => {
+    console.log(user.userId , cartItemId)
   try {
     const res = await fetch(
       `https://smarttry.onrender.com/api/update-cartItem/${user.userId}/${cartItemId}`,
