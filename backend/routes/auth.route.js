@@ -11,31 +11,23 @@ const authRouter = express.Router();
     GOOGLE AUTH ROUTES
 ================================ */
 
-// 🔹 GOOGLE LOGIN
+// 1️⃣ Google Login URL
 authRouter.get(
   "/google",
-  passport.authenticate("google", {
-    scope: ["profile", "email"],
-    session: false, // ✅ IMPORTANT
-  })
+  passport.authenticate("google", { scope: ["profile", "email"] })
 );
 
-// 🔹 GOOGLE CALLBACK
+// 2️⃣ Callback URL
 authRouter.get(
   "/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "/",
-    session: false, // ✅ IMPORTANT
-  }),
+  passport.authenticate("google", { failureRedirect: "/" }),
   async (req, res) => {
     try {
       const email = req.user.emails[0].value;
       const name = req.user.displayName;
-      const image =
-        req.user.photos && req.user.photos.length > 0
-          ? req.user.photos[0].value
-          : "";
+      const image = req.user.photos?.[0]?.value;
 
+      // Check if user exists
       let user = await userModel.findOne({ email });
 
       if (!user) {
@@ -43,22 +35,18 @@ authRouter.get(
           name,
           email,
           password: "",
-          image,
+          image: image || "",
           seller: false,
-          birthday: "",
-          gender: "",
+          birthday:"",
+          gender:"",
           bio: "",
           sellerInfo: {},
         });
 
         await user.save();
-      } else if (!user.image && image) {
-        // 🔥 Update image if missing
-        user.image = image;
-        await user.save();
       }
 
-      // ✅ GENERATE JWT
+      // Create JWT
       const token = await generateToken(
         user.email,
         user.name,
@@ -66,15 +54,17 @@ authRouter.get(
         user.seller
       );
 
-      // ✅ SET COOKIE
+      // Set cookie
       res.cookie("token", token, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
-      return res.redirect(process.env.CLIENT_URL);
+      // ---- IMPORTANT ----
+      // Redirect user to frontend
+      return res.redirect(process.env.CLIENT_URL); // frontend home page
     } catch (error) {
       console.error("Google Auth Error:", error);
       res.status(500).json({ message: "Server error during login" });
@@ -83,35 +73,30 @@ authRouter.get(
 );
 
 /* ================================
-    GET USER PROFILE (JWT BASED)
+    GET USER PROFILE
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-
-  if (!token) {
-    return res.status(401).json({ message: "No token provided" });
-  }
+  console.log(token, "tokennnnn");
+  if (!token) return res.status(401).json({ message: "No token provided" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-
+   console.log(decoded, "decodeddd");
     const user = await userModel
       .findById(decoded.userId)
-      .select("_id name email image seller");
+      .select("name email image userId");
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    console.log(user, "userprofile");
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
-      userId: user._id,
       name: user.name,
       email: user.email,
-      image: user.image,
-      seller: user.seller,
+      photo: user.image,
     });
-  } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+  } catch {
+    res.status(401).json({ message: "Invalid token" });
   }
 });
 
@@ -125,7 +110,12 @@ authRouter.get("/logout", (req, res) => {
     sameSite: "none",
   });
 
-  return res.redirect(process.env.CLIENT_URL);
+
+
+  req.logout(() => {
+    return res.redirect(process.env.CLIENT_URL)
+  });
+
 });
 
 module.exports = authRouter;
