@@ -25,9 +25,12 @@ authRouter.get(
     try {
       const email = req.user.emails[0].value;
       const name = req.user.displayName;
-      const image = req.user.photos?.[0]?.value;
+console.log(req.user)
+      const image =
+        req.user.photos && req.user.photos.length > 0
+          ? req.user.photos[0].value
+          : "";
 
-      // Check if user exists
       let user = await userModel.findOne({ email });
 
       if (!user) {
@@ -35,18 +38,23 @@ authRouter.get(
           name,
           email,
           password: "",
-          image: image || "",
+          image,
           seller: false,
-          birthday:"",
-          gender:"",
+          birthday: "",
+          gender: "",
           bio: "",
           sellerInfo: {},
         });
 
         await user.save();
+      } else {
+        // 🔥 Update image if missing
+        if (!user.image && image) {
+          user.image = image;
+          await user.save();
+        }
       }
 
-      // Create JWT
       const token = await generateToken(
         user.email,
         user.name,
@@ -54,17 +62,14 @@ authRouter.get(
         user.seller
       );
 
-      // Set cookie
       res.cookie("token", token, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // ---- IMPORTANT ----
-      // Redirect user to frontend
-      return res.redirect(process.env.CLIENT_URL); // frontend home page
+      return res.redirect(process.env.CLIENT_URL);
     } catch (error) {
       console.error("Google Auth Error:", error);
       res.status(500).json({ message: "Server error during login" });
@@ -72,33 +77,35 @@ authRouter.get(
   }
 );
 
+
 /* ================================
     GET USER PROFILE
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-  console.log(token, "tokennnnn");
   if (!token) return res.status(401).json({ message: "No token provided" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-   console.log(decoded, "decodeddd");
+
     const user = await userModel
       .findById(decoded.userId)
-      .select("name email image");
+      .select("_id name email image seller");
 
-    console.log(user, "userprofile");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
+      userId: user._id,     // ✅ IMPORTANT
       name: user.name,
       email: user.email,
-      photo: user.image,
+      image: user.image,    // ✅ CONSISTENT KEY
+      seller: user.seller,
     });
   } catch {
     res.status(401).json({ message: "Invalid token" });
   }
 });
+
 
 /* ================================
     LOGOUT
