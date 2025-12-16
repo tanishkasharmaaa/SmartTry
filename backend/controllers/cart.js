@@ -167,7 +167,6 @@ const getAllCartItems = async (req, res) => {
         select: "name image price sizes brand currentStock",
       });
 
-    // Empty cart
     if (!cart) {
       return res.status(200).json({
         message: "Cart is empty",
@@ -177,19 +176,22 @@ const getAllCartItems = async (req, res) => {
       });
     }
 
-    const cartItems = cart.items.map((item) => ({
-      _id: item._id,
-      productId: item.productsId, // ✅ FULL PRODUCT OBJECT
-      size: item.size,
-      quantity: item.quantity,
-      priceAtAdd: item.priceAtAdd,
-    }));
+    const cartItems = cart.items
+      .filter(item => item.productsId)
+      .map(item => ({
+        _id: item._id,
+        productId: item.productsId,
+        size: item.size,
+        quantity: Math.min(item.quantity, item.productsId.currentStock),
+        priceAtAdd: item.priceAtAdd,
+        outOfStock: item.productsId.currentStock === 0,
+      }));
 
     res.status(200).json({
       message: "Cart fetched successfully",
       cartItems,
       totalAmount: cart.totalAmount,
-      totalItems: cart.items.length,
+      totalItems: cartItems.length,
       lastUpdated: cart.updatedAt,
     });
   } catch (error) {
@@ -197,6 +199,7 @@ const getAllCartItems = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 
