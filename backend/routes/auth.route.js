@@ -11,21 +11,26 @@ const authRouter = express.Router();
     GOOGLE AUTH ROUTES
 ================================ */
 
-// 1️⃣ Google Login URL
+// 🔹 GOOGLE LOGIN
 authRouter.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false, // ✅ IMPORTANT
+  })
 );
 
-// 2️⃣ Callback URL
+// 🔹 GOOGLE CALLBACK
 authRouter.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/" }),
+  passport.authenticate("google", {
+    failureRedirect: "/",
+    session: false, // ✅ IMPORTANT
+  }),
   async (req, res) => {
     try {
       const email = req.user.emails[0].value;
       const name = req.user.displayName;
-console.log(req.user)
       const image =
         req.user.photos && req.user.photos.length > 0
           ? req.user.photos[0].value
@@ -47,14 +52,13 @@ console.log(req.user)
         });
 
         await user.save();
-      } else {
+      } else if (!user.image && image) {
         // 🔥 Update image if missing
-        if (!user.image && image) {
-          user.image = image;
-          await user.save();
-        }
+        user.image = image;
+        await user.save();
       }
 
+      // ✅ GENERATE JWT
       const token = await generateToken(
         user.email,
         user.name,
@@ -62,6 +66,7 @@ console.log(req.user)
         user.seller
       );
 
+      // ✅ SET COOKIE
       res.cookie("token", token, {
         httpOnly: true,
         secure: true,
@@ -77,13 +82,15 @@ console.log(req.user)
   }
 );
 
-
 /* ================================
-    GET USER PROFILE
+    GET USER PROFILE (JWT BASED)
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-  if (!token) return res.status(401).json({ message: "No token provided" });
+
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
@@ -92,20 +99,21 @@ authRouter.get("/profile", async (req, res) => {
       .findById(decoded.userId)
       .select("_id name email image seller");
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     res.json({
-      userId: user._id,     // ✅ IMPORTANT
+      userId: user._id,
       name: user.name,
       email: user.email,
-      image: user.image,    // ✅ CONSISTENT KEY
+      image: user.image,
       seller: user.seller,
     });
-  } catch {
-    res.status(401).json({ message: "Invalid token" });
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
   }
 });
-
 
 /* ================================
     LOGOUT
@@ -117,12 +125,7 @@ authRouter.get("/logout", (req, res) => {
     sameSite: "none",
   });
 
-
-
-  req.logout(() => {
-    return res.redirect(process.env.CLIENT_URL)
-  });
-
+  return res.redirect(process.env.CLIENT_URL);
 });
 
 module.exports = authRouter;

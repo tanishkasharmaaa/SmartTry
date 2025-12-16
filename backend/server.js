@@ -2,7 +2,6 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDb = require("./config/db");
-const session = require("express-session");
 const passport = require("passport");
 const cookieParser = require("cookie-parser");
 const { v4: uuid4 } = require("uuid");
@@ -12,41 +11,24 @@ dotenv.config();
 
 require("./config/passportSetup");
 require("./cron/orderTracker");
-require("./queue/emailWorker")
+require("./queue/emailWorker");
 
 const app = express();
 
 // ---------------------------------- MIDDLEWARE ----------------------------------
 
-// CORS (IMPORTANT: must allow credentials for cookies)
 app.use(
-  cors(
-    {
+  cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true
-  }
-)
+    credentials: true,
+  })
 );
 
 app.use(express.json());
 app.use(cookieParser());
 
-// Express-session (passport depends on it)
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "mysecret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: true, // HTTPS only in production
-      httpOnly: true,
-      sameSite: "none"
-    }
-  })
-);
-
+// ✅ Passport INIT ONLY (NO SESSION)
 app.use(passport.initialize());
-app.use(passport.session());
 
 // ---------------------------------- ROUTES ----------------------------------
 
@@ -85,11 +67,9 @@ const server = app.listen(port, async () => {
 // ---------------------------------- WEBSOCKET SERVER ----------------------------------
 
 const wss = new WebSocket.Server({ server });
-
 const sessions = new Map();
 
 wss.on("connection", (ws) => {
-
   const sessionId = uuid4();
   sessions.set(sessionId, ws);
 
@@ -97,7 +77,6 @@ wss.on("connection", (ws) => {
 
   ws.send(JSON.stringify({ type: "connected", sessionId }));
 
-  // Handle incoming WebSocket messages
   ws.on("message", async (message) => {
     try {
       const data = JSON.parse(message);
@@ -106,23 +85,22 @@ wss.on("connection", (ws) => {
         const askAI = require("./utils/askAI");
 
         const req = { body: data };
-
         const res = {
-          status: (code) => ({
+          status: () => ({
             json: (obj) => ws.send(JSON.stringify(obj)),
           }),
         };
 
         await askAI(req, res, ws);
       }
-
     } catch (err) {
       console.error("❌ WS message error:", err);
-
-      ws.send(JSON.stringify({
-        success: false,
-        message: "Invalid message format"
-      }));
+      ws.send(
+        JSON.stringify({
+          success: false,
+          message: "Invalid message format",
+        })
+      );
     }
   });
 

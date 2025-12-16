@@ -200,9 +200,6 @@ const getAllCartItems = async (req, res) => {
   }
 };
 
-
-
-
 module.exports = {
   addToCart,
   removeFromCart,
