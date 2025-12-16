@@ -168,7 +168,7 @@ const Navbar = () => {
           ))}
 
           
-          <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
+          <Login buttonName={authenticated?"Logout":"Login / SignUp"} close={onClose}/>
         </Box>
       </Box>
 
@@ -206,7 +206,7 @@ const Navbar = () => {
             gap="20px"
             mt="20px"
           >
-            <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
+            <Login buttonName={authenticated?"Logout":"Login / SignUp"} close={onClose}/>
             {["Men", "Women", "Unisex", "About"].map((item) => (
               <Text
                 as={Link}

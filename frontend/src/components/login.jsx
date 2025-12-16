@@ -11,7 +11,6 @@ import {
   VStack,
   HStack,
   Divider,
-  useToast,
   WrapItem,
   Avatar,
   Menu,
@@ -25,10 +24,11 @@ import { FcGoogle } from "react-icons/fc";
 import Cookies from "js-cookie";
 import { Link, useNavigate } from "react-router-dom";
 import CartContext from "../context/cartContext";
+import { useToast } from "../context/useToast";
 
-const Login = ({ buttonName }) => {
+const Login = ({ buttonName,close }) => {
   const { authenticated, logout, user } = useContext(AuthContext);
-  const { cartCount } = useContext(CartContext)
+  const { cartCount } = useContext(CartContext);
   console.log(user);
 
   const bg = useColorModeValue("white", "black");
@@ -37,10 +37,6 @@ const Login = ({ buttonName }) => {
 
   const mainBtnBg = useColorModeValue("black", "white");
   const mainBtnColor = useColorModeValue("white", "black");
-
-  const toastBg = useColorModeValue("gray.100", "gray.800");
-  const toastColor = useColorModeValue("black", "white");
-  const toastBorder = useColorModeValue("gray.300", "gray.600");
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [mode, setMode] = useState("main");
@@ -59,26 +55,9 @@ const Login = ({ buttonName }) => {
     password: "",
   });
 
-  const toast = useToast();
   const navigate = useNavigate();
 
-  const showToast = (title, description, status) => {
-    toast({
-      title,
-      description,
-      status,
-      duration: 2500,
-      isClosable: true,
-      position: "top",
-      containerStyle: {
-        background: toastBg,
-        color: toastColor,
-        border: `1px solid ${toastBorder}`,
-        borderRadius: "8px",
-        padding: "10px",
-      },
-    });
-  };
+  const {showToast} = useToast()
 
   const handleClose = () => {
     setMode("main");
@@ -115,11 +94,11 @@ const Login = ({ buttonName }) => {
       const data = await response.json();
 
       if (response.ok) {
-        showToast(
-          "Account Created",
-          "Your account has been created.",
-          "success"
-        );
+        showToast({
+          title:"Account Created",
+          description:"Your account has been created.",
+          type:"success"
+        })
         setMode("login");
       } else {
         showToast(
@@ -127,14 +106,20 @@ const Login = ({ buttonName }) => {
           data.message || "Unable to create account.",
           "error"
         );
+
+        showToast({
+          title:"Signup Failed",
+          description:data.message || "Unable to create account.",
+          type:"error"
+        })
       }
     } catch (error) {
       console.log(error);
-      showToast(
-        "Network Error",
-        "Something went wrong. Try again later.",
-        "error"
-      );
+      showToast({
+        title:"Network Error",
+        description:"Something went wrong. Try again later.",
+        type:"error"
+      });
     }
   };
 
@@ -161,19 +146,27 @@ const Login = ({ buttonName }) => {
           sameSite: "none",
         });
 
-        showToast("Login Successful 🎉", "Welcome back!", "success");
+        showToast({
+           title:"Login Successful 🎉",
+           description:"Welcome back!",
+           type:"success"
+          });
 
         handleClose(); // close modal
       } else {
-        showToast(
-          "Login Failed ❌",
-          data.message || "Invalid credentials",
-          "error"
-        );
+        showToast({
+          title:"Login Failed ❌",
+          description:data.message || "Invalid credentials",
+          type:"error"
+        });
       }
     } catch (error) {
       console.log(error);
-      showToast("Network Error", "Unable to connect to server", "error");
+      showToast({
+        title:"Network Error", 
+        description:"Unable to connect to server", 
+        type:"error"
+      });
     }
   };
 
@@ -187,7 +180,7 @@ const Login = ({ buttonName }) => {
               <Avatar
                 size="sm"
                 name={user?.name || name}
-                src={user?.image}
+                src={user?.photo}
                 objectFit="cover"
               />
             </MenuButton>
@@ -195,35 +188,43 @@ const Login = ({ buttonName }) => {
             <MenuList bg={bg}>
               {authenticated ? (
                 <>
-                  <MenuItem bg={bg} onClick={() => navigate("/cart")}>
-  <HStack w="100%" justify="space-between">
-    <Text>Cart</Text>
+                  <MenuItem bg={bg} onClick={() => {
+                    navigate("/cart")
+                    close&close()
+                    }}>
+                    <HStack w="100%" justify="space-between">
+                      <Text>Cart</Text>
 
-    {cartCount > 0 && (
-      <Box
-        minW="20px"
-        h="20px"
-        px={2}
-        fontSize="xs"
-        borderRadius="full"
-        bg="black"
-        color="white"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
-      >
-        {cartCount}
-      </Box>
-    )}
-  </HStack>
-</MenuItem>
+                      {cartCount > 0 && (
+                        <Box
+                          minW="20px"
+                          h="20px"
+                          px={2}
+                          fontSize="xs"
+                          borderRadius="full"
+                          bg="black"
+                          color="white"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="center"
+                        >
+                          {cartCount}
+                        </Box>
+                      )}
+                    </HStack>
+                  </MenuItem>
 
-
-                  <MenuItem bg={bg} onClick={() => navigate("/orders")}>
+                  <MenuItem bg={bg} onClick={() => {
+                    navigate("/orders")
+                    close&close()
+                    }}>
                     Orders
                   </MenuItem>
 
-                  <MenuItem bg={bg} onClick={() => navigate("/settings")}>
+                  <MenuItem bg={bg} onClick={() => {
+                    navigate("/settings")
+                    close&close()
+                    }}>
                     Settings
                   </MenuItem>
 

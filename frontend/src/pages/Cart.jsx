@@ -11,7 +11,7 @@ import {
   Button,
   Flex,
   useColorModeValue,
-  Select
+  Select,
 } from "@chakra-ui/react";
 import Login from "../components/login";
 import { Link } from "react-router-dom";
@@ -32,6 +32,7 @@ const Cart = () => {
   const btnColor = useColorModeValue("white", "black");
   const btnHover = useColorModeValue("gray.800", "gray.200");
 
+  // ---------------- FETCH CART ----------------
   useEffect(() => {
     if (!authenticated) return;
 
@@ -42,11 +43,10 @@ const Cart = () => {
           credentials: "include",
         });
         const data = await res.json();
-        console.log(data)
         setCartItems(data.cartItems || []);
         setTotalAmount(data.totalAmount || 0);
       } catch (error) {
-        console.log(error);
+        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -54,6 +54,34 @@ const Cart = () => {
 
     fetchCartItems();
   }, [authenticated, user]);
+
+  // ---------------- UPDATE CART ITEM ----------------
+  const updateCartItem = async (cartItemId, updates) => {
+  try {
+    const res = await fetch(
+      `https://smarttry.onrender.com/api/update-cartItem/${user.userId}/${cartItemId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(updates),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to update cart");
+    }
+
+    setCartItems(data.cartItems);
+    setTotalAmount(data.totalAmount);
+  } catch (err) {
+    console.error("Update cart failed:", err.message);
+  }
+};
 
   if (!authenticated) return <Login buttonName="Login to view cart" />;
 
@@ -73,11 +101,7 @@ const Cart = () => {
         </Text>
       </Box>
 
-      <Flex
-        direction={{ base: "column", md: "row" }}
-        gap={6}
-        px={{ base: 4, md: 8 }}
-      >
+      <Flex direction={{ base: "column", md: "row" }} gap={6} px={{ base: 4, md: 8 }}>
         {/* CART ITEMS */}
         <Box flex="3">
           {!cartItems.length ? (
@@ -86,15 +110,10 @@ const Cart = () => {
                 <Box p={6} bg={cardBg} borderRadius="full">
                   <FiShoppingCart size={48} />
                 </Box>
-
-                <Text fontSize="xl" fontWeight="bold">
-                  Your cart is empty
-                </Text>
-
+                <Text fontSize="xl" fontWeight="bold">Your cart is empty</Text>
                 <Text fontSize="sm" color={mutedText}>
                   Add items to see them here
                 </Text>
-
                 <Button
                   bg={btnBg}
                   color={btnColor}
@@ -107,78 +126,80 @@ const Cart = () => {
             </Flex>
           ) : (
             <VStack spacing={4} align="stretch">
-              {cartItems.map((item,index) => (
+              {cartItems.map((item) => (
                 <Box
-                  key={index}
+                  key={item._id}
                   bg={cardBg}
-                  p={{ base: 3, md: 4 }}
+                  p={4}
                   borderRadius="md"
                   boxShadow="sm"
-                  overflow="hidden"
                 >
-                  <Flex
-                    gap={4}
-                    direction={{ base: "column", sm: "row" }}
-                    align="flex-start"
-                  >
+                  <Flex gap={4} direction={{ base: "column", sm: "row" }}>
                     {/* IMAGE */}
                     <Image
-                      src={item.image}
+                      src={item.product?.image}
                       alt={item.productsId?.name}
                       w={{ base: "100%", sm: "120px" }}
                       h={{ base: "220px", sm: "120px" }}
                       objectFit="contain"
-                      bg={cardBg}
                       borderRadius="md"
-                      flexShrink={0}
                     />
 
                     {/* CONTENT */}
-                    <Box flex="1" minW={0}>
-                      {/* TITLE */}
-                      <Text
-                        fontSize={{ base: "md", md: "lg" }}
-                        fontWeight="semibold"
-                        color={textColor}
-                        noOfLines={2}
-                        wordBreak="break-word"
-                      >
+                    <Box flex="1">
+                      <Text fontWeight="semibold" fontSize="lg" color={textColor}>
                         {item.productsId?.name}
                       </Text>
 
-                      {/* META */}
-                      <Text fontSize="sm" color={mutedText} mt={1}>
+                      <Text fontSize="sm" color={mutedText}>
                         Size: {item.size} · Qty: {item.quantity}
                       </Text>
 
-                      {/* PRICE */}
                       <Text fontWeight="bold" mt={2}>
                         ₹{item.priceAtAdd * item.quantity}
                       </Text>
 
-                      {/* SIZE & QUANTITY */}
-                      <HStack mt={3} spacing={4} flexWrap="wrap">
+                      {/* SIZE & QTY */}
+                      <HStack mt={3} spacing={4}>
                         {/* SIZE */}
                         <Box>
-                          <Text fontSize="xs" color={mutedText} mb={1}>
-                            Size
-                          </Text>
-                          <Select size="sm" value={item.size} maxW="100px">
-                            {item.productsId?.sizes?.map((size) => (
-                              <option key={size} value={size}>
-                                {size}
+                          <Text fontSize="xs" color={mutedText}>Size</Text>
+                          <Select
+                            size="sm"
+                            value={item.size}
+                            onChange={(e) =>
+                              updateCartItem(item._id, { size: e.target.value })
+                            }
+                          >
+                            {Object.entries(
+                              item.product?.stockId?.currentStock || {}
+                            ).map(([size, qty]) => (
+                              <option key={size} value={size} disabled={qty === 0}>
+                                {size} {qty === 0 ? "(Out of Stock)" : ""}
                               </option>
                             ))}
                           </Select>
                         </Box>
 
-                        {/* QUANTITY */}
+                        {/* QTY */}
                         <Box>
-                          <Text fontSize="xs" color={mutedText} mb={1}>
-                            Qty
-                          </Text>
-                          <Select size="sm" value={item.quantity} maxW="80px">
-                            {[1, 2, 3, 4, 5].map((qty) => (
+                          <Text fontSize="xs" color={mutedText}>Qty</Text>
+                          <Select
+                            size="sm"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              updateCartItem(item._id, {
+                                quantity: Number(e.target.value),
+                              })
+                            }
+                          >
+                            {Array.from(
+                              {
+                                length:
+                                  item.product?.stockId?.currentStock?.[item.size] || 1,
+                              },
+                              (_, i) => i + 1
+                            ).map((qty) => (
                               <option key={qty} value={qty}>
                                 {qty}
                               </option>
@@ -188,19 +209,12 @@ const Cart = () => {
                       </HStack>
 
                       {/* ACTIONS */}
-                      <HStack spacing={4} mt={3} wrap="wrap">
-                        <Button size="xs" variant="link" colorScheme="blue">
+                      <HStack spacing={4} mt={3}>
+                        <Button size="xs" variant="link" colorScheme="red">
                           Delete
                         </Button>
-
-                        <Button size="xs" variant="link" colorScheme="blue">
-                          Save for later
-                        </Button>
-
                         <Link to={`/product/${item.productsId?._id}`}>
-                          <Button size="xs" variant="link">
-                            View product
-                          </Button>
+                          <Button size="xs" variant="link">View product</Button>
                         </Link>
                       </HStack>
                     </Box>
@@ -211,7 +225,7 @@ const Cart = () => {
           )}
         </Box>
 
-        {/* ORDER SUMMARY (DESKTOP) */}
+        {/* ORDER SUMMARY */}
         {cartItems.length > 0 && (
           <Box
             flex="1"
@@ -228,54 +242,18 @@ const Cart = () => {
             </Text>
 
             <HStack justify="space-between">
-              <Text color={mutedText}>Subtotal ({cartItems.length} items)</Text>
+              <Text color={mutedText}>Subtotal</Text>
               <Text fontWeight="medium">₹{totalAmount}</Text>
             </HStack>
 
             <Divider my={4} />
 
-            <Button
-              w="100%"
-              bg={btnBg}
-              color={btnColor}
-              size="lg"
-              _hover={{ bg: btnHover }}
-            >
+            <Button w="100%" bg={btnBg} color={btnColor} _hover={{ bg: btnHover }}>
               Proceed to Buy
             </Button>
           </Box>
         )}
       </Flex>
-
-      {/* MOBILE CHECKOUT BAR */}
-      {cartItems.length > 0 && (
-        <Box
-          position="fixed"
-          bottom={0}
-          left={0}
-          right={0}
-          bg={cardBg}
-          px={4}
-          py={3}
-          boxShadow="0 -4px 12px rgba(0,0,0,0.1)"
-          display={{ base: "block", md: "none" }}
-        >
-          <HStack justify="space-between">
-            <Box>
-              <Text fontSize="sm" color={mutedText}>
-                Total
-              </Text>
-              <Text fontSize="lg" fontWeight="bold">
-                ₹{totalAmount}
-              </Text>
-            </Box>
-
-            <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }}>
-              Buy Now
-            </Button>
-          </HStack>
-        </Box>
-      )}
     </Box>
   );
 };
