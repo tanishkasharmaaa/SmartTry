@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import Pagination from "../components/pagination";
-import { ArrowRightIcon,StarIcon } from "@chakra-ui/icons";
+import { ArrowRightIcon, StarIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 
 const Mens = () => {
@@ -140,7 +140,7 @@ const Mens = () => {
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
-            console.log(parsed.data)
+            console.log(parsed.data);
             setProducts(parsed.data.products);
             setTotalPages(parsed.data.totalpages);
             setLoading(false);
@@ -321,7 +321,9 @@ const Mens = () => {
                 bg={bgColor}
                 _hover={{ shadow: "lg", transform: "scale(1.02)" }}
                 transition="all 0.2s ease"
-                onClick={() => navigate(`/products/${product._id}-${product.name}`)}
+                onClick={() =>
+                  navigate(`/products/${product._id}-${product.name}`)
+                }
               >
                 <Box
                   aspectRatio={1}
@@ -341,34 +343,34 @@ const Mens = () => {
                 </Box>
 
                 <Box p={2}>
-  <Text fontWeight="semibold" isTruncated>
-    {product.name}
-  </Text>
+                  <Text fontWeight="semibold" isTruncated>
+                    {product.name}
+                  </Text>
 
-  {/* ⭐ Rating Stack */}
-  <HStack spacing={1} mt={1}>
-    {[...Array(5)].map((_, i) => (
-      <StarIcon
-        key={i}
-        boxSize={3}
-        color={
-          i < Math.round(product.averageRating)
-            ? "yellow.400"
-            : "gray.300"
-        }
-      />
-    ))}
+                  {/* ⭐ Rating Stack */}
+                  <HStack spacing={1} mt={1}>
+                    {[...Array(5)].map((_, i) => (
+                      <StarIcon
+                        key={i}
+                        boxSize={3}
+                        color={
+                          i < Math.round(product.averageRating)
+                            ? "yellow.400"
+                            : "gray.300"
+                        }
+                      />
+                    ))}
 
-    <Text fontSize="xs" color="gray.500">
-      ({product.averageRating || 0})
-    </Text>
-  </HStack>
+                    <Text fontSize="xs" color="gray.500">
+                      ({product.averageRating || 0})
+                    </Text>
+                  </HStack>
 
-  {/* 💰 Price */}
-  <Text fontWeight="bold" color="gray.400" mt={1}>
-    ₹{product.price}
-  </Text>
-</Box>
+                  {/* 💰 Price */}
+                  <Text fontWeight="bold" color="gray.400" mt={1}>
+                    ₹{product.price}
+                  </Text>
+                </Box>
               </Box>
             ))}
       </SimpleGrid>

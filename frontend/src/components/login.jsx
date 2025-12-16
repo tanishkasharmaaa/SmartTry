@@ -17,17 +17,19 @@ import {
   Menu,
   MenuButton,
   MenuList,
-  MenuItem
+  MenuItem,
 } from "@chakra-ui/react";
 import { useContext, useState } from "react";
 import AuthContext from "../context/authContext";
 import { FcGoogle } from "react-icons/fc";
 import Cookies from "js-cookie";
+import { Link, useNavigate } from "react-router-dom";
+import CartContext from "../context/cartContext";
 
-
-const Login = ({buttonName}) => {
-  const { authenticated, logout } = useContext(AuthContext);
-  const userInfo = authenticated ? JSON.parse(localStorage.getItem("userInfo")) : null;
+const Login = ({ buttonName }) => {
+  const { authenticated, logout, user } = useContext(AuthContext);
+  const { cartCount } = useContext(CartContext)
+  console.log(user);
 
   const bg = useColorModeValue("white", "black");
   const googleBorder = useColorModeValue("gray.300", "gray.600");
@@ -58,6 +60,7 @@ const Login = ({buttonName}) => {
   });
 
   const toast = useToast();
+  const navigate = useNavigate();
 
   const showToast = (title, description, status) => {
     toast({
@@ -112,14 +115,26 @@ const Login = ({buttonName}) => {
       const data = await response.json();
 
       if (response.ok) {
-        showToast("Account Created", "Your account has been created.", "success");
+        showToast(
+          "Account Created",
+          "Your account has been created.",
+          "success"
+        );
         setMode("login");
       } else {
-        showToast("Signup Failed", data.message || "Unable to create account.", "error");
+        showToast(
+          "Signup Failed",
+          data.message || "Unable to create account.",
+          "error"
+        );
       }
     } catch (error) {
       console.log(error);
-      showToast("Network Error", "Something went wrong. Try again later.", "error");
+      showToast(
+        "Network Error",
+        "Something went wrong. Try again later.",
+        "error"
+      );
     }
   };
 
@@ -150,10 +165,14 @@ const Login = ({buttonName}) => {
 
         handleClose(); // close modal
       } else {
-        showToast("Login Failed ❌", data.message || "Invalid credentials", "error");
+        showToast(
+          "Login Failed ❌",
+          data.message || "Invalid credentials",
+          "error"
+        );
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       showToast("Network Error", "Unable to connect to server", "error");
     }
   };
@@ -161,30 +180,73 @@ const Login = ({buttonName}) => {
   return (
     <Box>
       {/* BUTTON OR AVATAR */}
-      {authenticated ? (<>
-      
-        <Menu>
-    <MenuButton>
-      <Avatar size="sm" name={userInfo?.photo||name} src="" cursor="pointer" />
-    </MenuButton>
+      {authenticated ? (
+        <>
+          <Menu>
+            <MenuButton>
+              <Avatar
+                size="sm"
+                name={user?.name || name}
+                src={user?.image}
+                objectFit="cover"
+              />
+            </MenuButton>
 
-    <MenuList bg={bg}>
-      <MenuItem bg={bg}>Profile</MenuItem>
-      <MenuItem bg={bg}>Orders</MenuItem>
-      <MenuItem bg={bg}>Settings</MenuItem>
-      <MenuItem bg={bg} onClick={logout} color="red.400">
-        {buttonName}
-      </MenuItem>
-    </MenuList>
-  </Menu>
-      </>) : (
+            <MenuList bg={bg}>
+              {authenticated ? (
+                <>
+                  <MenuItem bg={bg} onClick={() => navigate("/cart")}>
+  <HStack w="100%" justify="space-between">
+    <Text>Cart</Text>
+
+    {cartCount > 0 && (
+      <Box
+        minW="20px"
+        h="20px"
+        px={2}
+        fontSize="xs"
+        borderRadius="full"
+        bg="black"
+        color="white"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
+        {cartCount}
+      </Box>
+    )}
+  </HStack>
+</MenuItem>
+
+
+                  <MenuItem bg={bg} onClick={() => navigate("/orders")}>
+                    Orders
+                  </MenuItem>
+
+                  <MenuItem bg={bg} onClick={() => navigate("/settings")}>
+                    Settings
+                  </MenuItem>
+
+                  <MenuItem bg={bg} onClick={logout} color="red.400">
+                    {buttonName}
+                  </MenuItem>
+                </>
+              ) : (
+                <Box px={3} py={2}>
+                  <Login buttonName="Login" />
+                </Box>
+              )}
+            </MenuList>
+          </Menu>
+        </>
+      ) : (
         <Button
           bg={mainBtnBg}
           color={mainBtnColor}
           px="20px"
           borderRadius="md"
           _hover={{ opacity: 0.9 }}
-          onClick={onOpen}   // FIXED
+          onClick={onOpen} // FIXED
         >
           {buttonName}
         </Button>
@@ -233,7 +295,11 @@ const Login = ({buttonName}) => {
                 Create Account
               </Button>
 
-              <Button w="100%" variant="outline" onClick={() => setMode("login")}>
+              <Button
+                w="100%"
+                variant="outline"
+                onClick={() => setMode("login")}
+              >
                 Login with Email
               </Button>
             </VStack>
@@ -249,13 +315,17 @@ const Login = ({buttonName}) => {
               <Input
                 placeholder="Name"
                 value={signupData.name}
-                onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
+                onChange={(e) =>
+                  setSignupData({ ...signupData, name: e.target.value })
+                }
               />
               <Input
                 placeholder="Email"
                 type="email"
                 value={signupData.email}
-                onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
+                onChange={(e) =>
+                  setSignupData({ ...signupData, email: e.target.value })
+                }
               />
               <Input
                 placeholder="Password"
@@ -270,18 +340,35 @@ const Login = ({buttonName}) => {
                 type="password"
                 value={signupData.confirmPassword}
                 onChange={(e) =>
-                  setSignupData({ ...signupData, confirmPassword: e.target.value })
+                  setSignupData({
+                    ...signupData,
+                    confirmPassword: e.target.value,
+                  })
                 }
               />
 
-              <Button w="100%" bg={mainBtnBg} color={mainBtnColor} onClick={handleCreateAccount}>
+              <Button
+                w="100%"
+                bg={mainBtnBg}
+                color={mainBtnColor}
+                onClick={handleCreateAccount}
+              >
                 Sign Up
               </Button>
 
-              <Text fontSize="sm" color="blue.400" cursor="pointer" onClick={() => setMode("login")}>
+              <Text
+                fontSize="sm"
+                color="blue.400"
+                cursor="pointer"
+                onClick={() => setMode("login")}
+              >
                 Already have an account? Login
               </Text>
-              <Text fontSize="sm" cursor="pointer" onClick={() => setMode("main")}>
+              <Text
+                fontSize="sm"
+                cursor="pointer"
+                onClick={() => setMode("main")}
+              >
                 ← Back
               </Text>
             </VStack>
@@ -298,16 +385,25 @@ const Login = ({buttonName}) => {
                 placeholder="Email"
                 type="email"
                 value={loginData.email}
-                onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                onChange={(e) =>
+                  setLoginData({ ...loginData, email: e.target.value })
+                }
               />
               <Input
                 placeholder="Password"
                 type="password"
                 value={loginData.password}
-                onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                onChange={(e) =>
+                  setLoginData({ ...loginData, password: e.target.value })
+                }
               />
 
-              <Button w="100%" bg={mainBtnBg} color={mainBtnColor} onClick={handleLogin}>
+              <Button
+                w="100%"
+                bg={mainBtnBg}
+                color={mainBtnColor}
+                onClick={handleLogin}
+              >
                 Login
               </Button>
 
@@ -319,7 +415,11 @@ const Login = ({buttonName}) => {
               >
                 Create a new account
               </Text>
-              <Text fontSize="sm" cursor="pointer" onClick={() => setMode("main")}>
+              <Text
+                fontSize="sm"
+                cursor="pointer"
+                onClick={() => setMode("main")}
+              >
                 ← Back
               </Text>
             </VStack>

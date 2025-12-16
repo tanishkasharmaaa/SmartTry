@@ -206,6 +206,7 @@ const Navbar = () => {
             gap="20px"
             mt="20px"
           >
+            <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
             {["Men", "Women", "Unisex", "About"].map((item) => (
               <Text
                 as={Link}
@@ -220,8 +221,6 @@ const Navbar = () => {
               </Text>
             ))}
 
-            {/* AUTH BUTTON */}
-            <Login buttonName={authenticated?"Logout":"Login / SignUp"}/>
           </DrawerBody>
         </DrawerContent>
       </Drawer>

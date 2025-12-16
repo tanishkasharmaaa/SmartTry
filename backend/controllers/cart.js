@@ -162,9 +162,12 @@ const getAllCartItems = async (req, res) => {
 
     const cart = await cartModel
       .findOne({ userId })
-      .populate("items.productsId"); // Populate product details
+      .populate({
+        path: "items.productsId",
+        select: "name image price sizes brand",
+      });
 
-    // If no cart exists, return empty array instead of 404
+    // Empty cart
     if (!cart) {
       return res.status(200).json({
         message: "Cart is empty",
@@ -174,28 +177,27 @@ const getAllCartItems = async (req, res) => {
       });
     }
 
-    // Map items to clean structure for frontend
     const cartItems = cart.items.map((item) => ({
-      productId: item.productsId._id,
-      name: item.productsId.name,
-      image: item.productsId.image,
+      _id: item._id,
+      productId: item.productsId, // ✅ FULL PRODUCT OBJECT
       size: item.size,
       quantity: item.quantity,
       priceAtAdd: item.priceAtAdd,
     }));
 
     res.status(200).json({
-      message: "✅ Cart items fetched successfully",
+      message: "Cart fetched successfully",
       cartItems,
       totalAmount: cart.totalAmount,
       totalItems: cart.items.length,
       lastUpdated: cart.updatedAt,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 module.exports = {
