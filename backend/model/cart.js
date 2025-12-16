@@ -10,6 +10,7 @@ const cartItemSchema = new mongoose.Schema({
   size: { type: String, enum: ["S", "M", "L", "XL", "XXL", "Free Size"] },
   priceAtAdd: { type: Number, required: true },
   addedAt: { type: Date, default: Date.now },
+  
 });
 
 const cartSchema = new mongoose.Schema(

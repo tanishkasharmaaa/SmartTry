@@ -164,41 +164,57 @@ const getAllCartItems = async (req, res) => {
       .findOne({ userId })
       .populate({
         path: "items.productsId",
-        select: "name image price sizes brand currentStock",
+        select: "name image price brand stockId",
+        populate: {
+          path: "stockId",
+          select: "currentStock",
+        },
       });
 
-    if (!cart) {
+    if (!cart || !cart.items.length) {
       return res.status(200).json({
-        message: "Cart is empty",
         cartItems: [],
-        totalAmount: 0,
         totalItems: 0,
+        totalAmount: 0,
       });
     }
 
     const cartItems = cart.items
       .filter(item => item.productsId)
-      .map(item => ({
-        _id: item._id,
-        productId: item.productsId,
-        size: item.size,
-        quantity: Math.min(item.quantity, item.productsId.currentStock),
-        priceAtAdd: item.priceAtAdd,
-        outOfStock: item.productsId.currentStock === 0,
-      }));
+      .map(item => {
+        const product = item.productsId;
+        const size = item.size;
+
+        const stockForSize =
+          product.stockId?.currentStock?.[size] ?? 0;
+
+        const validQty = Math.min(item.quantity, stockForSize);
+
+        return {
+          _id: item._id,
+          product,
+          size,
+          quantity: validQty,
+          priceAtAdd: item.priceAtAdd,
+          currentStock: stockForSize,
+          outOfStock: stockForSize === 0,
+        };
+      });
 
     res.status(200).json({
-      message: "Cart fetched successfully",
       cartItems,
-      totalAmount: cart.totalAmount,
       totalItems: cartItems.length,
-      lastUpdated: cart.updatedAt,
+      totalAmount: cartItems.reduce(
+        (sum, item) => sum + item.quantity * item.priceAtAdd,
+        0
+      ),
     });
   } catch (error) {
-    console.error(error);
+    console.error("Cart fetch error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 module.exports = {
   addToCart,
