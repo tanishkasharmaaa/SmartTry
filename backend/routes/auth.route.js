@@ -94,6 +94,7 @@ authRouter.get("/profile", async (req, res) => {
       name: user.name,
       email: user.email,
       photo: user.image,
+      userId:user._id
     });
   } catch {
     res.status(401).json({ message: "Invalid token" });
