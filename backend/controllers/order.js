@@ -12,29 +12,42 @@ const createOrderFromCart = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { cartId } = req.params;
+    const { cartItemIds } = req.body;
 
-    // Fetch cart
-    const cart = await cartModel.findById(cartId).populate("items.productsId");
+    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
+      return res.status(400).json({ message: "No cart items selected" });
+    }
+
+    // Fetch cart with product + stock
+    const cart = await cartModel.findById(cartId).populate({
+      path: "items.productsId",
+      populate: { path: "stockId" },
+    });
+
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    if (cart.items.length === 0)
-      return res.status(400).json({ message: "Cart is empty" });
+    // Filter selected items
+    const selectedItems = cart.items.filter(item =>
+      cartItemIds.includes(item._id.toString())
+    );
+
+    if (selectedItems.length === 0) {
+      return res.status(400).json({ message: "Selected cart items not found" });
+    }
 
     let totalAmount = 0;
-    let orderItems = [];
+    const orderItems = [];
 
-    for (let item of cart.items) {
-      totalAmount += item.quantity * item.priceAtAdd;
+    // ---- STOCK VALIDATION + UPDATE ----
+    for (const item of selectedItems) {
+      const product = item.productsId;
+      const stockEntry = product.stockId;
 
-      const product = await productModel.findById(item.productsId);
-      const stockEntry = await stockModel.findOne({
-        productsId: item.productsId,
-      });
-
-      if (!product || !stockEntry)
+      if (!product || !stockEntry) {
         return res.status(404).json({
           message: `Stock entry not found for product ${item.productsId}`,
         });
+      }
 
       const availableStock = stockEntry.currentStock[item.size] ?? 0;
 
@@ -57,55 +70,62 @@ const createOrderFromCart = async (req, res) => {
 
       await stockEntry.save();
 
+      totalAmount += item.quantity * item.priceAtAdd;
+
       orderItems.push({
         productsId: product._id,
         quantity: item.quantity,
-        priceAtOrder: product.price,
+        priceAtOrder: item.price,
         size: item.size,
       });
     }
 
-    // Create Order
+    // ---- CREATE ORDER ----
     const order = await orderModel.create({
       userId,
       items: orderItems,
       totalAmount,
       paymentStatus: "Pending",
       orderStatus: "Processing",
-      notifiedStatus: ["Processing"], // first status notified
+      notifiedStatus: ["Processing"],
       trackingHistory: [
         { status: "Processing", message: "Order created successfully" },
       ],
     });
 
-    
+    // ---- REMOVE ONLY PURCHASED ITEMS FROM CART ----
+    cart.items = cart.items.filter(
+      item => !cartItemIds.includes(item._id.toString())
+    );
 
-    // Clear cart
-    cart.items = [];
-    cart.totalAmount = 0;
+    cart.totalAmount = cart.items.reduce(
+      (total, item) => total + item.quantity * item.priceAtAdd,
+      0
+    );
+
     await cart.save();
 
-    // QUEUE: send order email
-await emailQueue.add("orderEmail", {
-  to: req.user.email,           // user email
-  subject: "Your order has been placed!",
-  data: {
-    message: `Your order has been successfully created and is now Processing.`,
-    productImage: order.items[0]?.productsId?.image || null
-  }
-});
-
+    // ---- EMAIL QUEUE ----
+    await emailQueue.add("orderEmail", {
+      to: req.user.email,
+      subject: "Your order has been placed!",
+      data: {
+        message: "Your order has been successfully created and is now Processing.",
+        productImage: order.items[0]?.productsId?.image || null,
+      },
+    });
 
     res.status(201).json({
       message: "Order created successfully",
       order,
+      remainingCartItems: cart.items,
+      remainingTotal: cart.totalAmount,
     });
   } catch (error) {
     console.error("❌ Error creating order from cart:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 /* ------------------------------------------------------
  🛍️ DIRECT BUY ORDER

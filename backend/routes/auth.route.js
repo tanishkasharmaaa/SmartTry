@@ -56,13 +56,12 @@ authRouter.get(
       }
 
       // ---------- CREATE JWT ----------
-      const token = generateToken(
+      const token = await generateToken(
         user.email,
         user.name,
         user._id,
         user.seller
       );
-
       // ---------- SET COOKIE ----------
       res.cookie("token", token, {
         httpOnly: true,
@@ -84,15 +83,16 @@ authRouter.get(
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
+  console.log(token , "tokennnn")
   if (!token) return res.status(401).json({ message: "No token provided" });
-
+  
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
     const user = await userModel
       .findById(decoded.userId)
       .select("name email image cartId seller");
-
+console.log(user)
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
