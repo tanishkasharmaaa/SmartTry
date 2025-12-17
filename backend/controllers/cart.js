@@ -134,19 +134,16 @@ const updateCartItem = async (req, res) => {
     const { size, quantity } = req.body;
     const userId = req.user.userId;
 
-    // 1️⃣ Find cart
-    const cart = await cartModel.findOne({ userId });
+    let cart = await cartModel.findOne({ userId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
 
-    // 2️⃣ Find cart item
     const item = cart.items.id(cartItemId);
     if (!item) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
-    // 3️⃣ Fetch product with stock
     const product = await productModel
       .findById(item.productsId)
       .populate("stockId", "currentStock");
@@ -155,66 +152,66 @@ const updateCartItem = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const newSize = size ?? item.size;
-    const newQty =
-      quantity !== undefined ? quantity : item.quantity;
-
-    // 4️⃣ Prevent duplicate product+size
-    const duplicate = cart.items.find(
-      (i) =>
-        i.productsId.toString() === item.productsId.toString() &&
-        i.size === newSize &&
-        i._id.toString() !== cartItemId
-    );
-
-    if (duplicate) {
-      return res.status(409).json({
-        message: "Same product with this size already in cart",
-      });
+    // ✅ size update
+    if (size) {
+      const stockForSize = product.stockId.currentStock?.[size] ?? 0;
+      if (stockForSize < item.quantity) {
+        return res.status(400).json({
+          message: `Only ${stockForSize} items available for size ${size}`,
+        });
+      }
+      item.size = size;
     }
 
-    // 5️⃣ Validate stock
-    const stockForSize =
-      product.stockId?.currentStock?.[newSize] ?? 0;
+    // ✅ quantity update
+    if (quantity !== undefined) {
+      const stockForSize =
+        product.stockId.currentStock?.[item.size] ?? 0;
 
-    if (stockForSize <= 0) {
-      return res.status(400).json({
-        message: `Size ${newSize} is out of stock`,
-      });
+      if (quantity > stockForSize) {
+        return res.status(400).json({
+          message: `Only ${stockForSize} items available`,
+        });
+      }
+
+      if (quantity <= 0) item.remove();
+      else item.quantity = quantity;
     }
 
-    if (newQty > stockForSize) {
-      return res.status(400).json({
-        message: `Only ${stockForSize} items available for size ${newSize}`,
-      });
-    }
-
-    // 6️⃣ Apply changes
-    if (quantity !== undefined && quantity <= 0) {
-      item.remove();
-    } else {
-      item.size = newSize;
-      item.quantity = newQty;
-    }
-
-    // 7️⃣ Recalculate total
     cart.totalAmount = cart.items.reduce(
-      (total, i) => total + i.quantity * i.priceAtAdd,
+      (sum, i) => sum + i.quantity * i.priceAtAdd,
       0
     );
 
     await cart.save();
 
+    // 🔥 IMPORTANT: re-fetch with populate
+    cart = await cartModel
+      .findOne({ userId })
+      .populate({
+        path: "items.productsId",
+        select: "name image price stockId",
+        populate: {
+          path: "stockId",
+          select: "currentStock",
+        },
+      });
+
     res.status(200).json({
-      cartItems: cart.items,
+      cartItems: cart.items.map((item) => ({
+        _id: item._id,
+        size: item.size,
+        quantity: item.quantity,
+        priceAtAdd: item.priceAtAdd,
+        product: item.productsId,
+      })),
       totalAmount: cart.totalAmount,
     });
-  } catch (error) {
-    console.error("Update cart error:", error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 
 // 📦 Get All Cart Items (Updated)
