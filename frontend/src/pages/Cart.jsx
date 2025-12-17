@@ -21,6 +21,7 @@ const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pendingUpdates, setPendingUpdates] = useState({});
 
   const { authenticated, user } = useContext(AuthContext);
 
@@ -43,11 +44,10 @@ const Cart = () => {
           credentials: "include",
         });
         const data = await res.json();
-        console.log(data)
         setCartItems(data.cartItems || []);
         setTotalAmount(data.totalAmount || 0);
-      } catch (error) {
-        console.error(error);
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -58,32 +58,61 @@ const Cart = () => {
 
   // ---------------- UPDATE CART ITEM ----------------
   const updateCartItem = async (cartItemId, updates) => {
-    console.log(user.userId , cartItemId)
-  try {
-    const res = await fetch(
-      `https://smarttry.onrender.com/api/update-cartItem/${user.userId}/${cartItemId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(updates),
+    try {
+      const res = await fetch(
+        `https://smarttry.onrender.com/api/cart/update-cartItem/${cartItemId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(updates),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setCartItems(data.cartItems);
+      setTotalAmount(data.totalAmount);
+
+      // remove pending draft after success
+      setPendingUpdates((prev) => {
+        const copy = { ...prev };
+        delete copy[cartItemId];
+        return copy;
+      });
+    } catch (err) {
+      console.error("Update failed:", err.message);
+    }
+  };
+
+  const handleDeleteCartItem = async (cartItemId) => {
+    try {
+      const res = await fetch(
+        `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setCartItems(data.cart.items || []);
+      setTotalAmount(data.cart.totalAmount || 0);
+    } catch (error) {
+      console.error("Delete cart item failed:", error.message);
+    }
+  };
+
+  const getEditableItem = (item) => {
+    return (
+      pendingUpdates[item._id] || {
+        size: item.size,
+        quantity: item.quantity,
       }
     );
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || "Failed to update cart");
-    }
-
-    setCartItems(data.cartItems);
-    setTotalAmount(data.totalAmount);
-  } catch (err) {
-    console.error("Update cart failed:", err.message);
-  }
-};
+  };
 
   if (!authenticated) return <Login buttonName="Login to view cart" />;
 
@@ -103,131 +132,177 @@ const Cart = () => {
         </Text>
       </Box>
 
-      <Flex direction={{ base: "column", md: "row" }} gap={6} px={{ base: 4, md: 8 }}>
+      <Flex
+        flex="3"
+        maxH={{ base: "auto", md: "80vh" }} // 70% of viewport height on desktop
+        overflowY={{ base: "visible", md: "auto" }} // scroll only on desktop
+        pb={4}
+      >
         {/* CART ITEMS */}
-        <Box flex="3">
+        <Box
+          flex="3"
+          overflowX="auto" // scroll for all screens
+          whiteSpace="nowrap"
+          pb={4}
+        >
           {!cartItems.length ? (
             <Flex minH="60vh" align="center" justify="center">
-              <VStack spacing={4} textAlign="center">
+              <VStack spacing={4}>
                 <Box p={6} bg={cardBg} borderRadius="full">
                   <FiShoppingCart size={48} />
                 </Box>
-                <Text fontSize="xl" fontWeight="bold">Your cart is empty</Text>
-                <Text fontSize="sm" color={mutedText}>
-                  Add items to see them here
-                </Text>
-                <Button
-                  bg={btnBg}
-                  color={btnColor}
-                  _hover={{ bg: btnHover }}
-                  onClick={() => (window.location.href = "/")}
-                >
-                  Continue Shopping
-                </Button>
+                <Text fontWeight="bold">Your cart is empty</Text>
               </VStack>
             </Flex>
           ) : (
             <VStack spacing={4} align="stretch">
-              {cartItems.map((item) => (
-                <Box
-                  key={item._id}
-                  bg={cardBg}
-                  p={4}
-                  borderRadius="md"
-                  boxShadow="sm"
-                >
-                  <Flex gap={4} direction={{ base: "column", sm: "row" }}>
-                    {/* IMAGE */}
-                    <Image
-                      src={item.product?.image}
-                      alt={item.productsId?.name}
-                      w={{ base: "100%", sm: "120px" }}
-                      h={{ base: "220px", sm: "120px" }}
-                      objectFit="contain"
-                      borderRadius="md"
-                    />
+              {cartItems.map((item) => {
+                const editable = getEditableItem(item);
 
-                    {/* CONTENT */}
-                    <Box flex="1">
-                      <Text fontWeight="semibold" fontSize="lg" color={textColor}>
-                        {item?.product?.name}
-                      </Text>
+                return (
+                  <Box
+                    key={item._id}
+                    bg={cardBg}
+                    p={4}
+                    borderRadius="md"
+                    flex="3"
+                    maxH="70vh"
+                    overflowY="auto"
+                    pr={2}
+                  >
+                    <Flex gap={4} direction={{ base: "column", sm: "row" }}>
+                      <Image
+                        src={item.product?.image}
+                        w={{ base: "100%", sm: "120px" }}
+                        h={{ base: "220px", sm: "120px" }}
+                        objectFit="contain"
+                      />
 
-                      <Text fontSize="sm" color={mutedText}>
-                        Size: {item.size} · Qty: {item.quantity}
-                      </Text>
+                      <Box flex="1">
+                        <Text fontWeight="semibold">
+                          {item.productsId?.name}
+                        </Text>
 
-                      <Text fontWeight="bold" mt={2}>
-                        ₹{item.priceAtAdd * item.quantity}
-                      </Text>
+                        <Text fontSize="sm" color={mutedText}>
+                          Size: {item.size} · Qty: {item.quantity}
+                        </Text>
 
-                      {/* SIZE & QTY */}
-                      <HStack mt={3} spacing={4}>
-                        {/* SIZE */}
-                        <Box>
-                          <Text fontSize="xs" color={mutedText}>Size</Text>
-                          <Select
+                        <Text fontWeight="bold" mt={2}>
+                          ₹{item.priceAtAdd * editable.quantity}
+                        </Text>
+
+                        {/* SIZE & QTY */}
+                        <HStack mt={3} spacing={4}>
+                          <Box>
+                            <Text fontSize="xs">Size</Text>
+                            <Select
+                              size="sm"
+                              value={editable.size}
+                              onChange={(e) =>
+                                setPendingUpdates((prev) => ({
+                                  ...prev,
+                                  [item._id]: {
+                                    ...editable,
+                                    size: e.target.value,
+                                  },
+                                }))
+                              }
+                            >
+                              {Object.entries(
+                                item.product?.stockId?.currentStock || {}
+                              ).map(([size, qty]) => (
+                                <option
+                                  key={size}
+                                  value={size}
+                                  disabled={qty === 0}
+                                >
+                                  {size} {qty === 0 && "(Out)"}
+                                </option>
+                              ))}
+                            </Select>
+                          </Box>
+
+                          <Box>
+                            <Text fontSize="xs">Qty</Text>
+                            <Select
+                              size="sm"
+                              value={editable.quantity}
+                              onChange={(e) =>
+                                setPendingUpdates((prev) => ({
+                                  ...prev,
+                                  [item._id]: {
+                                    ...editable,
+                                    quantity: Number(e.target.value),
+                                  },
+                                }))
+                              }
+                            >
+                              {Array.from(
+                                {
+                                  length:
+                                    item.product?.stockId?.currentStock?.[
+                                      editable.size
+                                    ] || 1,
+                                },
+                                (_, i) => i + 1
+                              ).map((q) => (
+                                <option key={q} value={q}>
+                                  {q}
+                                </option>
+                              ))}
+                            </Select>
+                          </Box>
+                        </HStack>
+
+                        {/* UPDATE BUTTON */}
+
+                        <Flex gap={2} mt={3} align="center">
+                          {/* Update Button */}
+                          <Button
                             size="sm"
-                            value={item.size}
-                            onChange={(e) =>
-                              updateCartItem(item._id, { size: e.target.value })
+                            bg={btnBg}
+                            color={btnColor}
+                            _hover={{ bg: btnHover }}
+                            isDisabled={
+                              editable.size === item.size &&
+                              editable.quantity === item.quantity
+                            }
+                            onClick={() =>
+                              updateCartItem(item._id, pendingUpdates[item._id])
                             }
                           >
-                            {Object.entries(
-                              item.product?.stockId?.currentStock || {}
-                            ).map(([size, qty]) => (
-                              <option key={size} value={size} disabled={qty === 0}>
-                                {size} {qty === 0 ? "(Out of Stock)" : ""}
-                              </option>
-                            ))}
-                          </Select>
-                        </Box>
+                            Update
+                          </Button>
 
-                        {/* QTY */}
-                        <Box>
-                          <Text fontSize="xs" color={mutedText}>Qty</Text>
-                          <Select
+                          {/* Delete Button */}
+                          <Button
                             size="sm"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateCartItem(item._id, {
-                                quantity: Number(e.target.value),
-                              })
-                            }
+                            colorScheme='red'
+                            onClick={() => handleDeleteCartItem(item._id)}
                           >
-                            {Array.from(
-                              {
-                                length:
-                                  item.product?.stockId?.currentStock?.[item.size] || 1,
-                              },
-                              (_, i) => i + 1
-                            ).map((qty) => (
-                              <option key={qty} value={qty}>
-                                {qty}
-                              </option>
-                            ))}
-                          </Select>
-                        </Box>
-                      </HStack>
+                            Delete
+                          </Button>
 
-                      {/* ACTIONS */}
-                      <HStack spacing={4} mt={3}>
-                        <Button size="xs" variant="link" colorScheme="red">
-                          Delete
-                        </Button>
-                        <Link to={`/products/${item.product?._id}-${item.product?.name}`}>
-                          <Button size="xs" variant="link">View product</Button>
-                        </Link>
-                      </HStack>
-                    </Box>
-                  </Flex>
-                </Box>
-              ))}
+                          {/* View Product */}
+                          <Link
+                            to={`/products/${item.product?._id}-${item.product?.name}`}
+                          >
+                            <Button size="xs" variant="link">
+                              View product
+                            </Button>
+                          </Link>
+                        </Flex>
+                      </Box>
+                    </Flex>
+                  </Box>
+                );
+              })}
             </VStack>
           )}
         </Box>
 
-        {/* ORDER SUMMARY */}
+        {/* SUMMARY */}
+        {/* SUMMARY - Desktop */}
         {cartItems.length > 0 && (
           <Box
             flex="1"
@@ -239,23 +314,40 @@ const Cart = () => {
             top="100px"
             display={{ base: "none", md: "block" }}
           >
-            <Text fontSize="lg" fontWeight="semibold" mb={4}>
-              Order Summary
-            </Text>
-
+            <Text fontWeight="semibold">Order Summary</Text>
+            <Divider my={3} />
             <HStack justify="space-between">
-              <Text color={mutedText}>Subtotal</Text>
-              <Text fontWeight="medium">₹{totalAmount}</Text>
+              <Text>Subtotal</Text>
+              <Text fontWeight="bold">₹{totalAmount}</Text>
             </HStack>
-
-            <Divider my={4} />
-
-            <Button w="100%" bg={btnBg} color={btnColor} _hover={{ bg: btnHover }}>
+            <Button mt={4} w="100%" bg={btnBg} color={btnColor}>
               Proceed to Buy
             </Button>
           </Box>
         )}
       </Flex>
+
+      {/* SUMMARY - Mobile Bottom Bar */}
+      {cartItems.length > 0 && (
+        <Flex
+          display={{ base: "flex", md: "none" }}
+          position="fixed"
+          bottom="0"
+          left="0"
+          right="0"
+          bg={cardBg}
+          p={4}
+          justify="space-between"
+          align="center"
+          boxShadow="0 -2px 10px rgba(0,0,0,0.1)"
+          zIndex={20}
+        >
+          <Text fontWeight="bold">Subtotal: ₹{totalAmount}</Text>
+          <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }}>
+            Proceed to Buy
+          </Button>
+        </Flex>
+      )}
     </Box>
   );
 };
