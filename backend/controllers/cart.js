@@ -134,45 +134,70 @@ const updateCartItem = async (req, res) => {
     const { size, quantity } = req.body;
     const userId = req.user.userId;
 
+    // 1️⃣ Find cart
     const cart = await cartModel.findOne({ userId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
 
+    // 2️⃣ Find cart item
     const item = cart.items.id(cartItemId);
     if (!item) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
-    const product = await productModel.findById(item.productsId);
+    // 3️⃣ Fetch product with stock
+    const product = await productModel
+      .findById(item.productsId)
+      .populate("stockId", "currentStock");
 
-    if (size) {
-      const stockForSize =
-        product.stockId?.currentStock?.[size] ?? 0;
-
-      if (stockForSize < item.quantity) {
-        return res.status(400).json({
-          message: `Only ${stockForSize} items available for size ${size}`,
-        });
-      }
-
-      item.size = size;
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
     }
 
-    if (quantity !== undefined) {
-      const stockForSize =
-        product.stockId?.currentStock?.[item.size] ?? 0;
+    const newSize = size ?? item.size;
+    const newQty =
+      quantity !== undefined ? quantity : item.quantity;
 
-      if (quantity > stockForSize) {
-        return res.status(400).json({
-          message: `Only ${stockForSize} items available`,
-        });
-      }
+    // 4️⃣ Prevent duplicate product+size
+    const duplicate = cart.items.find(
+      (i) =>
+        i.productsId.toString() === item.productsId.toString() &&
+        i.size === newSize &&
+        i._id.toString() !== cartItemId
+    );
 
-      if (quantity <= 0) item.remove();
-      else item.quantity = quantity;
+    if (duplicate) {
+      return res.status(409).json({
+        message: "Same product with this size already in cart",
+      });
     }
 
+    // 5️⃣ Validate stock
+    const stockForSize =
+      product.stockId?.currentStock?.[newSize] ?? 0;
+
+    if (stockForSize <= 0) {
+      return res.status(400).json({
+        message: `Size ${newSize} is out of stock`,
+      });
+    }
+
+    if (newQty > stockForSize) {
+      return res.status(400).json({
+        message: `Only ${stockForSize} items available for size ${newSize}`,
+      });
+    }
+
+    // 6️⃣ Apply changes
+    if (quantity !== undefined && quantity <= 0) {
+      item.remove();
+    } else {
+      item.size = newSize;
+      item.quantity = newQty;
+    }
+
+    // 7️⃣ Recalculate total
     cart.totalAmount = cart.items.reduce(
       (total, i) => total + i.quantity * i.priceAtAdd,
       0
@@ -185,10 +210,11 @@ const updateCartItem = async (req, res) => {
       totalAmount: cart.totalAmount,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Update cart error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 // 📦 Get All Cart Items (Updated)
