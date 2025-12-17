@@ -95,13 +95,19 @@ const removeFromCart = async (req, res) => {
       return res.status(404).json({ message: "Cart not found" });
     }
 
+    // Clear entire cart if no cartItemId provided
     if (!cartItemId) {
       cart.items = [];
       cart.totalAmount = 0;
       await cart.save();
-      return res.status(200).json({ message: "Cart cleared successfully" });
+      return res.status(200).json({
+        message: "Cart cleared successfully",
+        cartItems: [],
+        totalAmount: 0,
+      });
     }
 
+    // Find and remove the specific item
     const itemIndex = cart.items.findIndex(
       (item) => item._id.toString() === cartItemId
     );
@@ -112,6 +118,7 @@ const removeFromCart = async (req, res) => {
 
     cart.items.splice(itemIndex, 1);
 
+    // Recalculate totalAmount
     cart.totalAmount = cart.items.reduce(
       (total, item) => total + item.quantity * item.priceAtAdd,
       0
@@ -119,12 +126,18 @@ const removeFromCart = async (req, res) => {
 
     await cart.save();
 
-    res.status(200).json({ message: "Item removed successfully", cart });
+    // Return updated cart
+    res.status(200).json({
+      message: "Item removed successfully",
+      cartItems: cart.items,
+      totalAmount: cart.totalAmount,
+    });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 // ✏️ Update Cart Item (quantity or size)
