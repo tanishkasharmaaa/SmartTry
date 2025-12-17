@@ -90,7 +90,11 @@ const removeFromCart = async (req, res) => {
     const { cartItemId } = req.params;
     const userId = req.user.userId;
 
-    const cart = await cartModel.findOne({ userId });
+    const cart = await cartModel.findOne({ userId }).populate({
+      path: "items.productsId",
+      populate: { path: "stockId" }, // populate stock info
+    });
+
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
@@ -126,6 +130,12 @@ const removeFromCart = async (req, res) => {
 
     await cart.save();
 
+    // Populate the items again after removal
+    await cart.populate({
+      path: "items.productsId",
+      populate: { path: "stockId" },
+    });
+
     // Return updated cart
     res.status(200).json({
       message: "Item removed successfully",
@@ -137,8 +147,6 @@ const removeFromCart = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-
 
 // ✏️ Update Cart Item (quantity or size)
 const updateCartItem = async (req, res) => {

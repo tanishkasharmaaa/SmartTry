@@ -70,6 +70,7 @@ const Cart = () => {
       );
 
       const data = await res.json();
+      console.log(data)
       if (!res.ok) throw new Error(data.message);
 
       setCartItems(data.cartItems);
@@ -87,23 +88,26 @@ const Cart = () => {
   };
 
   const handleDeleteCartItem = async (cartItemId) => {
-    try {
-      const res = await fetch(
-        `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+  try {
+    const res = await fetch(
+      `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      }
+    );
 
-      setCartItems(data.cart.items || []);
-      setTotalAmount(data.cart.totalAmount || 0);
-    } catch (error) {
-      console.error("Delete cart item failed:", error.message);
-    }
-  };
+    const data = await res.json();
+    console.log(data)
+    if (!res.ok) throw new Error(data.message);
+
+    // use backend response directly
+    setCartItems(data?.cartItems);
+    setTotalAmount(data?.totalAmount);
+  } catch (error) {
+    console.error("Delete cart item failed:", error.message);
+  }
+};
 
   const getEditableItem = (item) => {
     return (
