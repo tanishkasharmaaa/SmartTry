@@ -180,7 +180,7 @@ const Login = ({ buttonName, close }) => {
               <Avatar
                 size="sm"
                 name={user?.name || name}
-                src={user?.photo}
+                src={user?.image}
                 objectFit="cover"
               />
             </MenuButton>

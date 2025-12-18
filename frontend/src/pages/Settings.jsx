@@ -20,6 +20,7 @@ import {
   Badge,
   Text,
 } from "@chakra-ui/react";
+import { useToast } from "../context/useToast";
 import { useContext, useState } from "react";
 import AuthContext from "../context/authContext";
 import CartContext from "../context/cartContext";
@@ -27,6 +28,7 @@ import CartContext from "../context/cartContext";
 const Settings = () => {
   const { user } = useContext(AuthContext);
   const { cartCount } = useContext(CartContext);
+  const {showToast} = useToast()
 
   const bg = useColorModeValue("white", "black");
   const cardBg = useColorModeValue("gray.50", "gray.800");
@@ -81,33 +83,79 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
   };
 
   const handleUpdate = async () => {
-    try {
-      const payload = { ...formData };
+  try {
+    const payload = { ...formData };
 
-      // ❌ do NOT send empty password
-      if (!payload.password) delete payload.password;
-
-      // ❌ do NOT send sellerInfo if not seller
-      if (!payload.seller) delete payload.sellerInfo;
-
-      const res = await fetch(
-        `https://smarttry.onrender.com/api/users/${user._id}`,
-        {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!res.ok) throw new Error("Update failed");
-
-      onClose();
-      window.location.reload(); // later replace with context update
-    } catch (err) {
-      console.error(err);
+    // ✅ Password validation
+    if (payload.password && payload.password.length < 6) {
+      showToast({
+        title: "Password too short ❌",
+        description: "Password must be at least 6 characters",
+        status: "warning",
+        duration: 4000,
+        isClosable: true,
+        position: "top",
+      });
+      return; // stop execution if password is invalid
     }
-  };
+
+    // ❌ Do not send empty password
+    if (!payload.password) delete payload.password;
+
+    // ❌ Do not send sellerInfo if not seller
+    if (!payload.seller) delete payload.sellerInfo;
+
+    const res = await fetch(
+      `https://smarttry.onrender.com/api/users/${user._id}`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      // ❌ Show server error
+      showToast({
+        title: "Update failed ❌",
+        description: data.message || "Something went wrong",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+        position: "top",
+      });
+      return;
+    }
+
+    // ✅ Success toast
+    showToast({
+      title: "Profile updated ✅",
+      description: data.message || "Your profile has been updated successfully",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+      position: "top",
+    });
+
+    onClose();
+    // window.location.reload(); // later replace with context update
+
+  } catch (err) {
+    console.error(err);
+    showToast({
+      title: "Update failed ❌",
+      description: err.message || "Something went wrong",
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+      position: "top",
+    });
+  }
+};
+
 
   if (!user) return null;
 
@@ -149,7 +197,7 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
           <Flex justify="center" mb={5}>
             <Avatar
               size={{ base: "xl", md: "2xl" }}
-              src={user.image || user.photo}
+              src={user.image}
               name={user.name}
             />
           </Flex>
@@ -275,11 +323,13 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
         />
 
         <Input
-          type="date"
-          name="birthday"
-          value={formData.birthday || ""}
-          onChange={handleChange}
-        />
+  type="date"
+  name="birthday"
+  value={formData.birthday ? formData.birthday.split("T")[0] : ""}
+  onChange={handleChange}
+  max={new Date().toISOString().split("T")[0]} // Prevent future dates
+/>
+
 
         <Select
           name="gender"
@@ -287,9 +337,9 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
           onChange={handleChange}
         >
           <option value="">Select gender</option>
-          <option value="female">Female</option>
-          <option value="male">Male</option>
-          <option value="other">Other</option>
+          <option value="Female">Female</option>
+          <option value="Male">Male</option>
+          <option value="Other">Other</option>
         </Select>
 
         <Textarea
