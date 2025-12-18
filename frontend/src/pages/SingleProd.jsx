@@ -34,7 +34,6 @@ import { useToast } from "../context/useToast";
 const SingleProd = () => {
   const { slug } = useParams();
   const productId = slug.split("-")[0];
-  console.log(productId);
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -88,11 +87,12 @@ const SingleProd = () => {
         if (!isMounted) return;
 
         const product = data.products?.[0] || null;
+        console.log(data);
 
         // 3️⃣ Save to cache
         localStorage.setItem(CACHE_KEY, JSON.stringify(product));
 
-        setProduct(product);
+        // setProduct(product);
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -109,7 +109,7 @@ const SingleProd = () => {
 
   const hasUserReviewed =
     authenticated &&
-    reviews.some((review) => review?.userId?.email === user?.email);
+    reviews.some((review) => review?.userId?._id === user?.userId);
 
   const handleSubmitReview = async () => {
     if (!userRating || !comment.trim()) {
@@ -160,6 +160,8 @@ const SingleProd = () => {
         description: "Thank you for sharing your feedback",
         type: "success",
       });
+       window.location.reload()
+      
     } catch (error) {
       console.error(error);
       showToast({
@@ -226,7 +228,7 @@ const SingleProd = () => {
       return;
     }
 
-    if (alreadyInCart) return; 
+    if (alreadyInCart) return;
 
     try {
       const res = await fetch(
@@ -243,6 +245,7 @@ const SingleProd = () => {
       );
 
       const data = await res.json();
+      console.log(data)
 
       // 🟡 Already in cart
       if (res.status === 409) {
@@ -278,48 +281,41 @@ const SingleProd = () => {
   };
 
   useEffect(() => {
-  const checkIfInCart = async () => {
-    if (!selectedSize) {
-      setAlreadyInCart(false);
-      return;
-    }
+    const checkIfInCart = async () => {
+      if (!selectedSize) {
+        setAlreadyInCart(false);
+        return;
+      }
 
-    try {
-      const res = await fetch(
-        "https://smarttry.onrender.com/api/cart",
-        {
+      try {
+        const res = await fetch("https://smarttry.onrender.com/api/cart", {
           method: "GET",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.cartItems) {
+          // Check if current product with selected size exists
+          const exists = data.cartItems.some(
+            (item) => item.productId === productId && item.size === selectedSize
+          );
+
+          setAlreadyInCart(exists);
+        } else {
+          setAlreadyInCart(false);
         }
-      );
-
-      const data = await res.json();
-
-      if (res.ok && data.cartItems) {
-        // Check if current product with selected size exists
-        const exists = data.cartItems.some(
-          (item) =>
-            item.productId === productId &&
-            item.size === selectedSize
-        );
-
-        setAlreadyInCart(exists);
-      } else {
+      } catch (error) {
+        console.error("Error checking cart:", error);
         setAlreadyInCart(false);
       }
-    } catch (error) {
-      console.error("Error checking cart:", error);
-      setAlreadyInCart(false);
-    }
-  };
+    };
 
-  checkIfInCart();
-}, [selectedSize, productId]);
-
-
+    checkIfInCart();
+  }, [selectedSize, productId]);
 
   if (!loading && !product) {
     return <Text fontSize="xl">Product not found</Text>;
@@ -352,7 +348,7 @@ const SingleProd = () => {
 
             <HStack mb={2}>
               <Text fontSize="2xl" fontWeight="semibold" color={textColor}>
-                ₹{product.price}
+               ₹{product.price}
               </Text>
               {product.discount && (
                 <Badge colorScheme="green">{product.discount}% OFF</Badge>

@@ -10,6 +10,8 @@ import SingleProd from "./pages/SingleProd";
 import { Card } from "@chakra-ui/react";
 import PrivateRoute from "./routes/privateRoute";
 import Cart from "./pages/Cart";
+import Order from "./pages/Order";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
@@ -22,16 +24,18 @@ function App() {
         <Route path="/unisex" element={<Unisex />} />
         <Route path="/about" element={<About />} />
         <Route path="/products/:slug" element={<SingleProd />} />
-       <Route
-  path="/cart"
-  element={
-    <PrivateRoute>
-      <Cart />
-    </PrivateRoute>
-  }
-/>
-
+        <Route path="/order" element={<Order />} />
+        <Route
+          path="/cart"
+          element={
+            <PrivateRoute>
+              <Cart />
+            </PrivateRoute>
+          }
+        />
+        <Route path="/settings" element={<PrivateRoute><Settings/></PrivateRoute>}/>
       </Routes>
+      
     </>
   );
 }

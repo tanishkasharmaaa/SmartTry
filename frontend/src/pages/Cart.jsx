@@ -12,6 +12,7 @@ import {
   Flex,
   useColorModeValue,
   Select,
+  Checkbox,
 } from "@chakra-ui/react";
 import Login from "../components/login";
 import { Link } from "react-router-dom";
@@ -22,6 +23,7 @@ const Cart = () => {
   const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pendingUpdates, setPendingUpdates] = useState({});
+  const [selectedItems, setSelectedItems] = useState(new Set());
 
   const { authenticated, user } = useContext(AuthContext);
 
@@ -32,6 +34,23 @@ const Cart = () => {
   const btnBg = useColorModeValue("black", "white");
   const btnColor = useColorModeValue("white", "black");
   const btnHover = useColorModeValue("gray.800", "gray.200");
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem("selectedCartItems")) || [];
+    setSelectedItems(saved);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("selectedCartItems", JSON.stringify(selectedItems));
+  }, [selectedItems]);
+
+  const toggleSelectItem = (cartItemId) => {
+    setSelectedItems((prev) =>
+      prev.includes(cartItemId)
+        ? prev.filter((id) => id !== cartItemId)
+        : [...prev, cartItemId]
+    );
+  };
 
   // ---------------- FETCH CART ----------------
   useEffect(() => {
@@ -70,7 +89,7 @@ const Cart = () => {
       );
 
       const data = await res.json();
-      console.log(data)
+      console.log(data);
       if (!res.ok) throw new Error(data.message);
 
       setCartItems(data.cartItems);
@@ -88,26 +107,30 @@ const Cart = () => {
   };
 
   const handleDeleteCartItem = async (cartItemId) => {
-  try {
-    const res = await fetch(
-      `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
-      {
-        method: "DELETE",
-        credentials: "include",
-      }
-    );
+    try {
+      const res = await fetch(
+        `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
 
-    const data = await res.json();
-    console.log(data)
-    if (!res.ok) throw new Error(data.message);
+      const data = await res.json();
+      console.log(data);
+      if (!res.ok) throw new Error(data.message);
 
-    // use backend response directly
-    setCartItems(data?.cartItems);
-    setTotalAmount(data?.totalAmount);
-  } catch (error) {
-    console.error("Delete cart item failed:", error.message);
-  }
-};
+      // use backend response directly
+      setCartItems(data?.cartItems);
+      setTotalAmount(data?.totalAmount);
+    } catch (error) {
+      console.error("Delete cart item failed:", error.message);
+    }
+  };
+
+  const selectedTotal = cartItems
+    .filter((item) => selectedItems.includes(item._id))
+    .reduce((sum, item) => sum + item.quantity * item.priceAtAdd, 0);
 
   const getEditableItem = (item) => {
     return (
@@ -130,7 +153,7 @@ const Cart = () => {
   return (
     <Box bg={pageBg} minH="100vh" pb={{ base: "110px", md: 0 }}>
       {/* HEADER */}
-      <Box px={{ base: 4, md: 8 }} py={6}>
+      <Box px={{ base: 4, md: 8 }} py={1}>
         <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold">
           Shopping Cart
         </Text>
@@ -159,7 +182,8 @@ const Cart = () => {
               </VStack>
             </Flex>
           ) : (
-            <VStack spacing={4} align="stretch">
+            <VStack spacing={4} align="stretch" maxH="75vh"
+                    overflowY="auto">
               {cartItems.map((item) => {
                 const editable = getEditableItem(item);
 
@@ -170,13 +194,20 @@ const Cart = () => {
                     p={4}
                     borderRadius="md"
                     flex="3"
-                    maxH="70vh"
-                    overflowY="auto"
+                    
                     pr={2}
                   >
                     <Flex gap={4} direction={{ base: "column", sm: "row" }}>
+                      <HStack mb={2}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item._id)}
+                          onChange={() => toggleSelectItem(item._id)}
+                        />
+                        <Text fontSize="sm">Select</Text>
+                      </HStack>
                       <Image
-                        src={item.product?.image}
+                        src={item.product?.image || item.productsId?.image}
                         w={{ base: "100%", sm: "120px" }}
                         h={{ base: "220px", sm: "120px" }}
                         objectFit="contain"
@@ -184,7 +215,7 @@ const Cart = () => {
 
                       <Box flex="1">
                         <Text fontWeight="semibold">
-                          {item.productsId?.name}
+                          {item.product?.name || item.productsId?.name}
                         </Text>
 
                         <Text fontSize="sm" color={mutedText}>
@@ -213,7 +244,8 @@ const Cart = () => {
                               }
                             >
                               {Object.entries(
-                                item.product?.stockId?.currentStock || {}
+                                item.product?.stockId?.currentStock ||
+                                  item.productsId?.stockId?.currentStock
                               ).map(([size, qty]) => (
                                 <option
                                   key={size}
@@ -246,7 +278,10 @@ const Cart = () => {
                                   length:
                                     item.product?.stockId?.currentStock?.[
                                       editable.size
-                                    ] || 1,
+                                    ] ||
+                                    item.productsId?.stockId?.currentStock?.[
+                                      editable.size
+                                    ],
                                 },
                                 (_, i) => i + 1
                               ).map((q) => (
@@ -281,7 +316,7 @@ const Cart = () => {
                           {/* Delete Button */}
                           <Button
                             size="sm"
-                            colorScheme='red'
+                            colorScheme="red"
                             onClick={() => handleDeleteCartItem(item._id)}
                           >
                             Delete
@@ -305,7 +340,6 @@ const Cart = () => {
           )}
         </Box>
 
-        {/* SUMMARY */}
         {/* SUMMARY - Desktop */}
         {cartItems.length > 0 && (
           <Box
@@ -322,9 +356,15 @@ const Cart = () => {
             <Divider my={3} />
             <HStack justify="space-between">
               <Text>Subtotal</Text>
-              <Text fontWeight="bold">₹{totalAmount}</Text>
+              <Text fontWeight="bold">₹{selectedTotal}</Text>
             </HStack>
-            <Button mt={4} w="100%" bg={btnBg} color={btnColor}>
+            <Button
+              mt={4}
+              w="100%"
+              bg={btnBg}
+              color={btnColor}
+              isDisabled={selectedItems.size === 0}
+            >
               Proceed to Buy
             </Button>
           </Box>
@@ -346,8 +386,13 @@ const Cart = () => {
           boxShadow="0 -2px 10px rgba(0,0,0,0.1)"
           zIndex={20}
         >
-          <Text fontWeight="bold">Subtotal: ₹{totalAmount}</Text>
-          <Button bg={btnBg} color={btnColor} _hover={{ bg: btnHover }}>
+          <Text fontWeight="bold">Subtotal: ₹{selectedTotal}</Text>
+          <Button
+            bg={btnBg}
+            color={btnColor}
+            _hover={{ bg: btnHover }}
+            isDisabled={selectedItems.size === 0}
+          >
             Proceed to Buy
           </Button>
         </Flex>

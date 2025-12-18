@@ -30,20 +30,26 @@ authRouter.get(
 
       let user = await userModel.findOne({ email });
 
-      // ---------- CREATE USER ----------
+      /* ============================
+         CREATE USER (LIKE createUser)
+      ============================ */
       if (!user) {
         user = await userModel.create({
           name,
           email,
-          password: "",
+          password: "", // Google users don't need password
           image,
-          seller: false,
+          birthday: "",
+          gender: "",
           bio: "",
-          sellerInfo: {},
+          seller: false,
+          sellerInfo: null,
         });
       }
 
-      // ---------- CREATE CART IF NOT EXISTS ----------
+      /* ============================
+         CREATE CART IF NOT EXISTS
+      ============================ */
       if (!user.cartId) {
         const cart = await cartModel.create({
           userId: user._id,
@@ -55,14 +61,19 @@ authRouter.get(
         await user.save();
       }
 
-      // ---------- CREATE JWT ----------
+      /* ============================
+         GENERATE JWT
+      ============================ */
       const token = await generateToken(
         user.email,
         user.name,
         user._id,
         user.seller
       );
-      // ---------- SET COOKIE ----------
+
+      /* ============================
+         SET COOKIE
+      ============================ */
       res.cookie("token", token, {
         httpOnly: true,
         secure: true,
@@ -72,41 +83,35 @@ authRouter.get(
 
       return res.redirect(process.env.CLIENT_URL);
     } catch (error) {
-      console.error("Google Auth Error:", error);
+      console.error("❌ Google Auth Error:", error);
       res.status(500).json({ message: "Server error during login" });
     }
   }
 );
+
 
 /* ================================
     GET USER PROFILE
 ================================ */
 authRouter.get("/profile", async (req, res) => {
   const token = req.cookies.token;
-  console.log(token , "tokennnn")
   if (!token) return res.status(401).json({ message: "No token provided" });
-  
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
     const user = await userModel
       .findById(decoded.userId)
-      .select("name email image cartId seller");
-console.log(user)
+      .select("-password"); // 🔥 never send password
+
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json({
-      name: user.name,
-      email: user.email,
-      photo: user.image,
-      userId: user._id,
-      cartId: user.cartId, // ✅ IMPORTANT
-      seller: user.seller,
-    });
+    res.status(200).json(user);
   } catch (err) {
     res.status(401).json({ message: "Invalid token" });
   }
 });
+
 
 /* ================================
     LOGOUT

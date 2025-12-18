@@ -26,7 +26,7 @@ import { Link, useNavigate } from "react-router-dom";
 import CartContext from "../context/cartContext";
 import { useToast } from "../context/useToast";
 
-const Login = ({ buttonName,close }) => {
+const Login = ({ buttonName, close }) => {
   const { authenticated, logout, user } = useContext(AuthContext);
   const { cartCount } = useContext(CartContext);
   console.log(user);
@@ -57,7 +57,7 @@ const Login = ({ buttonName,close }) => {
 
   const navigate = useNavigate();
 
-  const {showToast} = useToast()
+  const { showToast } = useToast();
 
   const handleClose = () => {
     setMode("main");
@@ -95,10 +95,10 @@ const Login = ({ buttonName,close }) => {
 
       if (response.ok) {
         showToast({
-          title:"Account Created",
-          description:"Your account has been created.",
-          type:"success"
-        })
+          title: "Account Created",
+          description: "Your account has been created.",
+          type: "success",
+        });
         setMode("login");
       } else {
         showToast(
@@ -108,17 +108,17 @@ const Login = ({ buttonName,close }) => {
         );
 
         showToast({
-          title:"Signup Failed",
-          description:data.message || "Unable to create account.",
-          type:"error"
-        })
+          title: "Signup Failed",
+          description: data.message || "Unable to create account.",
+          type: "error",
+        });
       }
     } catch (error) {
       console.log(error);
       showToast({
-        title:"Network Error",
-        description:"Something went wrong. Try again later.",
-        type:"error"
+        title: "Network Error",
+        description: "Something went wrong. Try again later.",
+        type: "error",
       });
     }
   };
@@ -147,25 +147,25 @@ const Login = ({ buttonName,close }) => {
         });
 
         showToast({
-           title:"Login Successful 🎉",
-           description:"Welcome back!",
-           type:"success"
-          });
+          title: "Login Successful 🎉",
+          description: "Welcome back!",
+          type: "success",
+        });
 
         handleClose(); // close modal
       } else {
         showToast({
-          title:"Login Failed ❌",
-          description:data.message || "Invalid credentials",
-          type:"error"
+          title: "Login Failed ❌",
+          description: data.message || "Invalid credentials",
+          type: "error",
         });
       }
     } catch (error) {
       console.log(error);
       showToast({
-        title:"Network Error", 
-        description:"Unable to connect to server", 
-        type:"error"
+        title: "Network Error",
+        description: "Unable to connect to server",
+        type: "error",
       });
     }
   };
@@ -188,10 +188,13 @@ const Login = ({ buttonName,close }) => {
             <MenuList bg={bg}>
               {authenticated ? (
                 <>
-                  <MenuItem bg={bg} onClick={() => {
-                    navigate("/cart")
-                    close&close()
-                    }}>
+                  <MenuItem
+                    bg={bg}
+                    onClick={() => {
+                      navigate("/cart");
+                      close & close();
+                    }}
+                  >
                     <HStack w="100%" justify="space-between">
                       <Text>Cart</Text>
 
@@ -214,17 +217,23 @@ const Login = ({ buttonName,close }) => {
                     </HStack>
                   </MenuItem>
 
-                  <MenuItem bg={bg} onClick={() => {
-                    navigate("/orders")
-                    close&close()
-                    }}>
+                  <MenuItem
+                    bg={bg}
+                    onClick={() => {
+                      navigate("/orders");
+                      close & close();
+                    }}
+                  >
                     Orders
                   </MenuItem>
 
-                  <MenuItem bg={bg} onClick={() => {
-                    navigate("/settings")
-                    close&close()
-                    }}>
+                  <MenuItem
+                    bg={bg}
+                    onClick={() => {
+                      navigate("/settings");
+                      close & close();
+                    }}
+                  >
                     Settings
                   </MenuItem>
 
