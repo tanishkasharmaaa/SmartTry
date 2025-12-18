@@ -67,6 +67,7 @@ app.use("/api/cart", require("./routes/cart.route"));
 app.use("/api/order", require("./routes/order.route"));
 app.use("/api/rules", require("./routes/rules.route"));
 app.use("/api/askAI", require("./routes/askAI.route"));
+app.use("/api/recommendations",require("./routes/recommendations.route"))
 
 // ---------------------------------- START SERVER ----------------------------------
 
