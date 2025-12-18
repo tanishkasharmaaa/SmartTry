@@ -2,6 +2,7 @@ const userModel = require("../model/users");
 const cartModel = require("../model/cart");
 const bcrypt = require("bcrypt");
 const emailQueue = require("../queue/emailQueue");
+const jwt = require("jsonwebtoken")
 
 // ============================
 // CREATE USER
@@ -100,7 +101,7 @@ const updateUser = async (req, res) => {
 
     user.name = body.name ?? user.name;
     user.email = body.email ?? user.email;
-    user.password = hashedPassword;
+    user.password = hashedPassword ;
     user.image = body.image ?? user.image;
     user.birthday = body.birthday ?? user.birthday;
     user.gender = body.gender ?? user.gender;
