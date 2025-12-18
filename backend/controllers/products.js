@@ -3,13 +3,31 @@ const stockModel = require("../model/stocks");
 const redis = require("../config/redis");
 const mongoose = require("mongoose");
 
+/* ======================================================
+   CREATE PRODUCT
+====================================================== */
 const createProducts = async (req, res) => {
   try {
-    const { name, description, price, category, gender, size, stock, image } =
-      req.body;
+    const {
+      name,
+      description,
+      price,
+      category,
+      gender,
+      size,
+      stock,
+      image,
+      tags,
+    } = req.body;
+
     const { userId, name: sellerName } = req.user;
 
-    // 🟢 1️⃣ Create product (without stockId)
+    // ✅ Normalize tags
+    const normalizedTags = Array.isArray(tags)
+      ? [...new Set(tags.map((t) => t.toLowerCase().trim()))]
+      : [];
+
+    // 🟢 Create product
     const productData = await productModel.create({
       name,
       description,
@@ -18,15 +36,16 @@ const createProducts = async (req, res) => {
       gender,
       size,
       image,
+      tags: normalizedTags, // ✅ TAGS ADDED
       sellerId: userId,
       sellerName,
       stockId: null,
-      reviewsId:[]
+      reviewsId: [],
     });
 
-    // 🟢 2️⃣ Create stock entry linked to the product
+    // 🟢 Create stock entry
     const stockData = await stockModel.create({
-      productsId: productData._id, // ✅ Correct field name
+      productsId: productData._id,
       sellerId: userId,
       currentStock: {
         S: size === "S" ? stock : 0,
@@ -47,7 +66,7 @@ const createProducts = async (req, res) => {
       ],
     });
 
-    // 🟢 3️⃣ Link the created stock with the product
+    // 🟢 Link stock
     productData.stockId = stockData._id;
     await productData.save();
 
@@ -62,18 +81,19 @@ const createProducts = async (req, res) => {
   }
 };
 
+/* ======================================================
+   UPDATE PRODUCT
+====================================================== */
 const updateProducts = async (req, res) => {
   try {
-    const productsId = req.params.productsId;
+    const { productsId } = req.params;
     const body = req.body;
 
-    // Find product
     const product = await productModel.findById(productsId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Update product fields
     const fields = [
       "name",
       "description",
@@ -82,15 +102,24 @@ const updateProducts = async (req, res) => {
       "image",
       "gender",
       "size",
+      "tags", // ✅ ADD TAGS
     ];
 
     fields.forEach((field) => {
-      if (body[field]) product[field] = body[field];
+      if (body[field]) {
+        if (field === "tags" && Array.isArray(body.tags)) {
+          product.tags = [
+            ...new Set(body.tags.map((t) => t.toLowerCase().trim())),
+          ];
+        } else {
+          product[field] = body[field];
+        }
+      }
     });
 
     await product.save();
 
-    // 🧩 Update stock if stock info provided
+    // 🧩 Update stock if required
     if (body.size && body.stock !== undefined) {
       const stock = await stockModel.findOne({ productsId });
       if (stock) {
@@ -110,7 +139,7 @@ const updateProducts = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Product updated successfully",
+      message: "✅ Product updated successfully",
       product,
     });
   } catch (error) {
@@ -119,9 +148,13 @@ const updateProducts = async (req, res) => {
   }
 };
 
+/* ======================================================
+   DELETE PRODUCT
+====================================================== */
 const deleteProducts = async (req, res) => {
   try {
-    const productsId = req.params.productsId;
+    const { productsId } = req.params;
+
     const deletedProduct = await productModel.findByIdAndDelete(productsId);
     if (!deletedProduct) {
       return res.status(404).json({ message: "Product not found" });
@@ -129,15 +162,18 @@ const deleteProducts = async (req, res) => {
 
     await stockModel.deleteOne({ productsId });
 
-    res
-      .status(200)
-      .json({ message: "Product and related stock deleted successfully" });
+    res.status(200).json({
+      message: "✅ Product and related stock deleted successfully",
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+/* ======================================================
+   FETCH PRODUCTS (WITH TAG FILTER)
+====================================================== */
 const fetchProducts = async (req, res) => {
   try {
     const {
@@ -148,6 +184,7 @@ const fetchProducts = async (req, res) => {
       minPrice,
       maxPrice,
       gender,
+      tags, // ✅ TAG FILTER
       page = 1,
       limit = 10,
     } = req.query;
@@ -157,14 +194,13 @@ const fetchProducts = async (req, res) => {
     if (category) query.category = category;
     if (brand) query.brand = brand;
 
-    // Case insensitive gender (Men, men, MEN)
     if (gender) {
       query.gender = { $regex: `^${gender}$`, $options: "i" };
     }
 
-    if (size) {
-      query.size = size;
-      query[`currentStock.${size}`] = { $gt: 0 };
+    if (tags) {
+      const tagArray = tags.split(",").map((t) => t.toLowerCase().trim());
+      query.tags = { $in: tagArray };
     }
 
     if (minPrice || maxPrice) {
@@ -181,68 +217,47 @@ const fetchProducts = async (req, res) => {
         { description: { $regex: search, $options: "i" } },
       ];
 
-      // 🔥 If search is a valid Mongo ObjectId, add ID search
       if (isValidObjectId) {
         query.$or.push({ _id: search });
       }
     }
 
     const skip = (Number(page) - 1) * Number(limit);
-
-    // ------------------------------------------
-    // 🔥 REDIS CACHE KEY (unique to this request)
-    // ------------------------------------------
     const cacheKey = `products:${JSON.stringify(req.query)}`;
 
-    // ------------------------------------------
-    // 🔥 Try reading from Redis
-    // ------------------------------------------
     const cachedData = await redis.get(cacheKey);
-
     if (cachedData) {
-      console.log("⚡ Redis Cache Hit");
-
       return res.status(200).json({
         ...JSON.parse(cachedData),
         fromCache: true,
       });
     }
 
-    console.log("⏳ Redis Cache Miss");
-
-    // ------------------------------------------
-    // DB CALLS
-    // ------------------------------------------
     const totalProducts = await productModel.countDocuments(query);
 
     const products = await productModel
       .find(query)
       .populate("stockId")
-      .populate("sellerId","name email image")
+      .populate("sellerId", "name email image")
       .skip(skip)
       .limit(Number(limit))
       .lean();
-
-    const totalpages = Math.ceil(totalProducts / Number(limit));
 
     const response = {
       message: "✅ Products fetched successfully",
       products,
       totalProducts,
-      totalpages,
+      totalpages: Math.ceil(totalProducts / Number(limit)),
       page: Number(page),
       limit: Number(limit),
     };
 
-    // ------------------------------------------
-    // 🔥 SAVE RESPONSE IN REDIS FOR 10 MINUTES
-    // ------------------------------------------
-    await redis.set(cacheKey, JSON.stringify(response), "EX", 60 * 10);
+    await redis.set(cacheKey, JSON.stringify(response), "EX", 600);
 
-    return res.status(200).json(response);
+    res.status(200).json(response);
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 

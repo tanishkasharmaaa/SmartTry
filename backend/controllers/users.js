@@ -2,7 +2,7 @@ const userModel = require("../model/users");
 const cartModel = require("../model/cart");
 const bcrypt = require("bcrypt");
 const emailQueue = require("../queue/emailQueue");
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 
 // ============================
 // CREATE USER
@@ -27,6 +27,11 @@ const createUser = async (req, res) => {
     // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
+    // NORMALIZE interest
+    const normalizedInterest = Array.isArray(body.interest)
+      ? [...new Set(body.interest.map((i) => i.toLowerCase().trim()))]
+      : [];
+
     // CREATE USER
     const user = await userModel.create({
       name: body.name,
@@ -48,10 +53,11 @@ const createUser = async (req, res) => {
             description: body.sellerInfo?.description || "",
           }
         : null,
+      interest: normalizedInterest, // ✅ ADDED interest
     });
 
     // ============================
-    // CREATE CART FOR USER (IMPORTANT)
+    // CREATE CART FOR USER
     // ============================
     const cart = await cartModel.create({
       userId: user._id,
@@ -66,7 +72,7 @@ const createUser = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    // SEND EMAIL ASYNC (NON BLOCKING)
+    // SEND EMAIL ASYNC
     await emailQueue.add({
       type: "signup",
       to: body.email,
@@ -118,11 +124,10 @@ const updateUser = async (req, res) => {
     user.bio = body.bio ?? user.bio;
 
     // =========================
-    // SELLER LOGIC (FIXED)
+    // SELLER LOGIC
     // =========================
     if (body.seller === true) {
       user.seller = true;
-
       user.sellerInfo = {
         sellerName: body.sellerInfo?.sellerName || "",
         gstNumber: body.sellerInfo?.gstNumber || "",
@@ -132,11 +137,16 @@ const updateUser = async (req, res) => {
         website: body.sellerInfo?.website || "",
         description: body.sellerInfo?.description || "",
       };
-    }
-
-    if (body.seller === false) {
+    } else if (body.seller === false) {
       user.seller = false;
       user.sellerInfo = null;
+    }
+
+    // =========================
+    // interest UPDATE
+    // =========================
+    if (Array.isArray(body.interest)) {
+      user.interest = [...new Set(body.interest.map((i) => i.toLowerCase().trim()))];
     }
 
     await user.save();
@@ -153,7 +163,6 @@ const updateUser = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 // ============================
 // DELETE USER
@@ -184,9 +193,7 @@ const getUserById = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    res
-      .status(200)
-      .json({ message: "User fetched successfully", user: userData });
+    res.status(200).json({ message: "User fetched successfully", user: userData });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });

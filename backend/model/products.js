@@ -17,6 +17,7 @@ const productsScehma = new mongoose.Schema({
     ref: "stocks",
     required: false,
   },
+  tags:{type: [String], required:true},
   image: { type: String, required: true },
   gender: { type: String, enum: ["Men", "Women", "Unisex"], required: true },
   size: {

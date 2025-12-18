@@ -20,6 +20,8 @@ const usersSchema = new mongoose.Schema({
 
   bio: { type: String },
 
+  interest : {type: [String]},
+
   // -------- SELLER --------
   seller: { type: Boolean, default: false },
 
