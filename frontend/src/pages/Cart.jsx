@@ -17,6 +17,7 @@ import {
 import Login from "../components/login";
 import { Link } from "react-router-dom";
 import { FiShoppingCart } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -26,6 +27,7 @@ const Cart = () => {
   const [selectedItems, setSelectedItems] = useState(new Set());
 
   const { authenticated, user } = useContext(AuthContext);
+  const navigate = useNavigate()
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -179,6 +181,7 @@ const Cart = () => {
                   <FiShoppingCart size={48} />
                 </Box>
                 <Text fontWeight="bold">Your cart is empty</Text>
+                <Button onClick={()=>navigate("/")}>Continue to shop</Button>
               </VStack>
             </Flex>
           ) : (

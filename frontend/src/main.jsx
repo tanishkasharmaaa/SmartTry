@@ -9,6 +9,7 @@ import AuthProvider from './context/authProvider.jsx'
 import ThemeProvider from './context/themeProvider.jsx'
 import { ToastProvider } from './context/toastProvider.jsx'
 import CartContext, { CartProvider } from './context/cartContext.jsx'
+import { RecommendationProvider } from './context/reccomendationContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <ChakraProvider theme={theme}>
@@ -16,9 +17,11 @@ createRoot(document.getElementById('root')).render(
      <ToastProvider>
    <BrowserRouter>
    <AuthProvider>
+    <RecommendationProvider>
     <CartProvider>
     <App />
     </CartProvider>
+    </RecommendationProvider>
     </AuthProvider>
   </BrowserRouter>
   </ToastProvider> 

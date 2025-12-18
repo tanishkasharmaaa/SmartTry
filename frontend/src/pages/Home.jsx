@@ -4,10 +4,13 @@ import TextRoll from "../components/textRoll";
 import ProductCarousel from "../components/productCarousel";
 import Footer from "../components/footer";
 import { useNavigate } from "react-router-dom";
+import {useRecommendations} from "../context/reccomendationContext"
 
 const Home = () => {
   const [hover, setHover] = useState(false);
-  const firstText = "Explore The Latest Fashion Trends  • ";
+  const {recommendations} = useRecommendations()
+  console.log(recommendations)
+  const firstText = recommendations?.length?"Recommendation For You  • ":"Explore The Latest Fashion Trends  • ";
   const secondText = "Explore The Trending Men Collection  • ";
   const thirdText = "Explore The Trending Women Collection  • "; 
   
