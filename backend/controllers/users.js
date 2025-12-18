@@ -95,51 +95,47 @@ const updateUser = async (req, res) => {
     const user = await userModel.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const hashedPassword = body.password
-      ? await bcrypt.hash(body.password, 10)
-      : user.password;
+    // =========================
+    // PASSWORD (SAFE)
+    // =========================
+    if (body.password) {
+      if (body.password.length < 6) {
+        return res.status(400).json({
+          message: "Password must be at least 6 characters",
+        });
+      }
+      user.password = await bcrypt.hash(body.password, 10);
+    }
 
+    // =========================
+    // BASIC FIELDS
+    // =========================
     user.name = body.name ?? user.name;
     user.email = body.email ?? user.email;
-    user.password = hashedPassword ;
     user.image = body.image ?? user.image;
     user.birthday = body.birthday ?? user.birthday;
     user.gender = body.gender ?? user.gender;
     user.bio = body.bio ?? user.bio;
-    user.seller = body.seller ?? user.seller;
 
-    if (user.seller) {
+    // =========================
+    // SELLER LOGIC (FIXED)
+    // =========================
+    if (body.seller === true) {
+      user.seller = true;
+
       user.sellerInfo = {
-        sellerName:
-          body.sellerInfo?.sellerName ??
-          user.sellerInfo?.sellerName ??
-          "",
-        gstNumber:
-          body.sellerInfo?.gstNumber ??
-          user.sellerInfo?.gstNumber ??
-          "",
-        businessName:
-          body.sellerInfo?.businessName ??
-          user.sellerInfo?.businessName ??
-          "",
-        businessAddress:
-          body.sellerInfo?.businessAddress ??
-          user.sellerInfo?.businessAddress ??
-          "",
-        contactNumber:
-          body.sellerInfo?.contactNumber ??
-          user.sellerInfo?.contactNumber ??
-          "",
-        website:
-          body.sellerInfo?.website ??
-          user.sellerInfo?.website ??
-          "",
-        description:
-          body.sellerInfo?.description ??
-          user.sellerInfo?.description ??
-          "",
+        sellerName: body.sellerInfo?.sellerName || "",
+        gstNumber: body.sellerInfo?.gstNumber || "",
+        businessName: body.sellerInfo?.businessName || "",
+        businessAddress: body.sellerInfo?.businessAddress || "",
+        contactNumber: body.sellerInfo?.contactNumber || "",
+        website: body.sellerInfo?.website || "",
+        description: body.sellerInfo?.description || "",
       };
-    } else {
+    }
+
+    if (body.seller === false) {
+      user.seller = false;
       user.sellerInfo = null;
     }
 
@@ -148,14 +144,16 @@ const updateUser = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    res
-      .status(200)
-      .json({ message: "User updated successfully", user: userData });
+    res.status(200).json({
+      message: "User updated successfully",
+      user: userData,
+    });
   } catch (error) {
-    console.log("❌ updateUser Error:", error);
+    console.error("❌ updateUser Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 // ============================
 // DELETE USER

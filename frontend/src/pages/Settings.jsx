@@ -28,21 +28,19 @@ import CartContext from "../context/cartContext";
 const Settings = () => {
   const { user } = useContext(AuthContext);
   const { cartCount } = useContext(CartContext);
-  const {showToast} = useToast()
+  const { showToast } = useToast();
 
   const bg = useColorModeValue("white", "black");
   const cardBg = useColorModeValue("gray.50", "gray.800");
   const label = useColorModeValue("gray.600", "gray.400");
   const text = useColorModeValue("gray.800", "white");
- 
-const borderClr = useColorModeValue("gray.200", "gray.700");
-const textClr = useColorModeValue("gray.800", "gray.100");
 
-const btnBg = useColorModeValue("black", "white");
-const btnColor = useColorModeValue("white", "black");
-const btnHoverBg = useColorModeValue("gray.800", "gray.200");
+  const borderClr = useColorModeValue("gray.200", "gray.700");
+  const textClr = useColorModeValue("gray.800", "gray.100");
 
-
+  const btnBg = useColorModeValue("black", "white");
+  const btnColor = useColorModeValue("white", "black");
+  const btnHoverBg = useColorModeValue("gray.800", "gray.200");
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -81,12 +79,11 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
       },
     }));
   };
-
-  const handleUpdate = async () => {
+const handleUpdate = async () => {
   try {
     const payload = { ...formData };
 
-    // ✅ Password validation
+    /* ================= PASSWORD VALIDATION ================= */
     if (payload.password && payload.password.length < 6) {
       showToast({
         title: "Password too short ❌",
@@ -96,15 +93,46 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
         isClosable: true,
         position: "top",
       });
-      return; // stop execution if password is invalid
+      return;
     }
 
     // ❌ Do not send empty password
     if (!payload.password) delete payload.password;
 
-    // ❌ Do not send sellerInfo if not seller
-    if (!payload.seller) delete payload.sellerInfo;
+    /* ================= SELLER VALIDATION ================= */
+    if (payload.seller) {
+      const {
+        sellerName,
+        businessName,
+        gstNumber,
+        contactNumber,
+      } = payload.sellerInfo || {};
 
+      if (
+        !sellerName ||
+        !businessName ||
+        !gstNumber ||
+        !contactNumber
+      ) {
+        showToast({
+          title: "Incomplete seller details ❌",
+          description: "Please fill all required seller information",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+          position: "top",
+        });
+        return;
+      }
+    }
+
+    /* ================= CLEAN PAYLOAD ================= */
+    if (!payload.seller) {
+      delete payload.sellerInfo;
+      payload.seller = false;
+    }
+
+    /* ================= API CALL ================= */
     const res = await fetch(
       `https://smarttry.onrender.com/api/users/${user._id}`,
       {
@@ -118,7 +146,6 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
     const data = await res.json();
 
     if (!res.ok) {
-      // ❌ Show server error
       showToast({
         title: "Update failed ❌",
         description: data.message || "Something went wrong",
@@ -130,7 +157,7 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
       return;
     }
 
-    // ✅ Success toast
+    /* ================= SUCCESS ================= */
     showToast({
       title: "Profile updated ✅",
       description: data.message || "Your profile has been updated successfully",
@@ -141,8 +168,9 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
     });
 
     onClose();
-    // window.location.reload(); // later replace with context update
-
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   } catch (err) {
     console.error(err);
     showToast({
@@ -237,7 +265,7 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
 
           {/* 4️⃣ User Personal Info */}
           <Stack spacing={3}>
-            <InfoRow label="Birthday" value={user.birthday || "Not provided"} />
+            <InfoRow label="Birthday" value={user.birthday.split("T")[0] || "Not provided"} />
             <InfoRow label="Gender" value={user.gender || "Not specified"} />
             <InfoRow label="Bio" value={user.bio || "No bio added"} />
             <InfoRow
@@ -245,6 +273,34 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
               value={user.seller ? "Yes" : "No"}
               badge={user.seller}
             />
+           {!formData.seller && (
+  <Button
+    size="sm"
+    colorScheme="purple"
+    variant="outline"
+    onClick={() => {
+  setFormData((prev) => ({
+    ...prev,
+    seller: true,
+    sellerInfo: {
+      sellerName: "",
+      gstNumber: "",
+      businessName: "",
+      businessAddress: "",
+      contactNumber: "",
+      website: "",
+      description: "",
+    },
+  }));
+
+  onOpen();
+}}
+
+  >
+    Become a Seller
+  </Button>
+)}
+
           </Stack>
 
           {/* 5️⃣ Seller Info */}
@@ -293,155 +349,152 @@ const btnHoverBg = useColorModeValue("gray.800", "gray.200");
       </Flex>
 
       <Modal
-  isOpen={isOpen}
-  onClose={onClose}
-  isCentered
-  size={{ base: "full", md: "lg" }}
->
-  <ModalOverlay />
-
-  <ModalContent bg={cardBg} borderRadius="xl">
-    <ModalHeader color={textClr}>Edit Profile</ModalHeader>
-    <ModalCloseButton />
-
-    <ModalBody>
-      <Stack spacing={4}>
-
-        {/* Basic Info */}
-        <Input
-          name="name"
-          placeholder="Name"
-          value={formData.name}
-          onChange={handleChange}
-        />
-
-        <Input
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-        />
-
-        <Input
-  type="date"
-  name="birthday"
-  value={formData.birthday ? formData.birthday.split("T")[0] : ""}
-  onChange={handleChange}
-  max={new Date().toISOString().split("T")[0]} // Prevent future dates
-/>
-
-
-        <Select
-          name="gender"
-          value={formData.gender}
-          onChange={handleChange}
-        >
-          <option value="">Select gender</option>
-          <option value="Female">Female</option>
-          <option value="Male">Male</option>
-          <option value="Other">Other</option>
-        </Select>
-
-        <Textarea
-          name="bio"
-          placeholder="Bio"
-          value={formData.bio}
-          onChange={handleChange}
-        />
-
-        <Input
-          type="password"
-          name="password"
-          placeholder="New Password (optional)"
-          value={formData.password}
-          onChange={handleChange}
-        />
-
-        {/* Seller Section */}
-        {formData.seller && (
-          <Box
-            border="1px solid"
-            borderColor={borderClr}
-            borderRadius="lg"
-            p={4}
-          >
-            <Text fontWeight="semibold" mb={3} color={textClr}>
-              Seller Information
-            </Text>
-
-            <Stack spacing={3}>
-              <Input
-                name="sellerName"
-                placeholder="Seller Name"
-                value={formData.sellerInfo.sellerName}
-                onChange={handleSellerChange}
-              />
-
-              <Input
-                name="businessName"
-                placeholder="Business Name"
-                value={formData.sellerInfo.businessName}
-                onChange={handleSellerChange}
-              />
-
-              <Input
-                name="gstNumber"
-                placeholder="GST Number"
-                value={formData.sellerInfo.gstNumber}
-                onChange={handleSellerChange}
-              />
-
-              <Input
-                name="contactNumber"
-                placeholder="Contact Number"
-                value={formData.sellerInfo.contactNumber}
-                onChange={handleSellerChange}
-              />
-
-              <Input
-                name="website"
-                placeholder="Website"
-                value={formData.sellerInfo.website}
-                onChange={handleSellerChange}
-              />
-
-              <Textarea
-                name="businessAddress"
-                placeholder="Business Address"
-                value={formData.sellerInfo.businessAddress}
-                onChange={handleSellerChange}
-              />
-
-              <Textarea
-                name="description"
-                placeholder="Seller Description"
-                value={formData.sellerInfo.description}
-                onChange={handleSellerChange}
-              />
-            </Stack>
-          </Box>
-        )}
-      </Stack>
-    </ModalBody>
-
-    <ModalFooter>
-      <Button variant="ghost" onClick={onClose}>
-        Cancel
-      </Button>
-
-      <Button
-        ml={3}
-        bg={btnBg}
-        color={btnColor}
-        _hover={{ bg: btnHoverBg }}
-        onClick={handleUpdate}
+        isOpen={isOpen}
+        onClose={onClose}
+        isCentered
+        size={{ base: "full", md: "lg" }}
       >
-        Save Changes
-      </Button>
-    </ModalFooter>
-  </ModalContent>
-</Modal>
+        <ModalOverlay />
 
+        <ModalContent bg={cardBg} borderRadius="xl">
+          <ModalHeader color={textClr}>Edit Profile</ModalHeader>
+          <ModalCloseButton />
+
+          <ModalBody>
+            <Stack spacing={4}>
+              {/* Basic Info */}
+              <Input
+                name="name"
+                placeholder="Name"
+                value={formData.name}
+                onChange={handleChange}
+              />
+
+              <Input
+                name="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
+              />
+
+              <Input
+                type="date"
+                name="birthday"
+                value={formData.birthday ? formData.birthday.split("T")[0] : ""}
+                onChange={handleChange}
+                max={new Date().toISOString().split("T")[0]} // Prevent future dates
+              />
+
+              <Select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+              >
+                <option value="">Select gender</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </Select>
+
+              <Textarea
+                name="bio"
+                placeholder="Bio"
+                value={formData.bio}
+                onChange={handleChange}
+              />
+
+              <Input
+                type="password"
+                name="password"
+                placeholder="New Password (optional)"
+                value={formData.password}
+                onChange={handleChange}
+              />
+
+              {/* Seller Section */}
+              {formData.seller && (
+                <Box
+                  border="1px solid"
+                  borderColor={borderClr}
+                  borderRadius="lg"
+                  p={4}
+                >
+                  <Text fontWeight="semibold" mb={3} color={textClr}>
+                    Seller Information
+                  </Text>
+
+                  <Stack spacing={3}>
+                    <Input
+                      name="sellerName"
+                      placeholder="Seller Name"
+                      value={formData.sellerInfo.sellerName}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Input
+                      name="businessName"
+                      placeholder="Business Name"
+                      value={formData.sellerInfo.businessName}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Input
+                      name="gstNumber"
+                      placeholder="GST Number"
+                      value={formData.sellerInfo.gstNumber}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Input
+                      name="contactNumber"
+                      placeholder="Contact Number"
+                      value={formData.sellerInfo.contactNumber}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Input
+                      name="website"
+                      placeholder="Website"
+                      value={formData.sellerInfo.website}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Textarea
+                      name="businessAddress"
+                      placeholder="Business Address"
+                      value={formData.sellerInfo.businessAddress}
+                      onChange={handleSellerChange}
+                    />
+
+                    <Textarea
+                      name="description"
+                      placeholder="Seller Description"
+                      value={formData.sellerInfo.description}
+                      onChange={handleSellerChange}
+                    />
+                  </Stack>
+                </Box>
+              )}
+            </Stack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+
+            <Button
+              ml={3}
+              bg={btnBg}
+              color={btnColor}
+              _hover={{ bg: btnHoverBg }}
+              onClick={handleUpdate}
+            >
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };
