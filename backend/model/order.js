@@ -64,6 +64,14 @@ const orderSchema = new mongoose.Schema({
 
   placedAt: { type: Date, default: Date.now },
   deliveredAt: { type: Date },
+  paymentProvider: {
+    type: String,
+    enum: ["mock", "razorpay", "stripe"],
+    default: "mock",
+  },
+  paymentId: {
+    type: String,
+  },
 });
 
 module.exports = mongoose.model("orders", orderSchema);

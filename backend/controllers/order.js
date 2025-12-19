@@ -9,57 +9,49 @@ const emailQueue = require("../queue/emailQueue");
  🧾 CREATE ORDER FROM CART
 ------------------------------------------------------ */
 const createOrderFromCart = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const userId = req.user.userId;
     const { cartId } = req.params;
     const { cartItemIds } = req.body;
 
-    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
+    if (!Array.isArray(cartItemIds) || !cartItemIds.length) {
       return res.status(400).json({ message: "No cart items selected" });
     }
 
-    // Fetch cart with product + stock
-    const cart = await cartModel.findById(cartId).populate({
-      path: "items.productsId",
-      populate: { path: "stockId" },
-    });
+    const cart = await cartModel
+      .findById(cartId)
+      .populate({
+        path: "items.productsId",
+        populate: { path: "stockId" },
+      })
+      .session(session);
 
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    // Filter selected items
     const selectedItems = cart.items.filter(item =>
       cartItemIds.includes(item._id.toString())
     );
 
-    if (selectedItems.length === 0) {
-      return res.status(400).json({ message: "Selected cart items not found" });
+    if (!selectedItems.length) {
+      return res.status(400).json({ message: "Selected items not found" });
     }
 
     let totalAmount = 0;
     const orderItems = [];
 
-    // ---- STOCK VALIDATION + UPDATE ----
     for (const item of selectedItems) {
       const product = item.productsId;
       const stockEntry = product.stockId;
 
-      if (!product || !stockEntry) {
-        return res.status(404).json({
-          message: `Stock entry not found for product ${item.productsId}`,
-        });
-      }
-
       const availableStock = stockEntry.currentStock[item.size] ?? 0;
-
       if (availableStock < item.quantity) {
-        return res.status(400).json({
-          message: `Insufficient stock for ${product.name} (Size: ${item.size})`,
-        });
+        throw new Error(`Insufficient stock for ${product.name}`);
       }
 
-      // Reduce stock
       stockEntry.currentStock[item.size] -= item.quantity;
-
       stockEntry.updatedStocks.push({
         size: item.size,
         previousStock: availableStock,
@@ -68,62 +60,57 @@ const createOrderFromCart = async (req, res) => {
         reason: "Order placed from cart",
       });
 
-      await stockEntry.save();
+      await stockEntry.save({ session });
 
-      totalAmount += item.quantity * item.priceAtAdd;
-
+      totalAmount += item.quantity * product.price;
       orderItems.push({
         productsId: product._id,
         quantity: item.quantity,
-        priceAtOrder: item.price,
+        priceAtOrder: product.price,
         size: item.size,
       });
     }
 
-    // ---- CREATE ORDER ----
-    const order = await orderModel.create({
-      userId,
-      items: orderItems,
-      totalAmount,
-      paymentStatus: "Pending",
-      orderStatus: "Processing",
-      notifiedStatus: ["Processing"],
-      trackingHistory: [
-        { status: "Processing", message: "Order created successfully" },
-      ],
-    });
+    const [order] = await orderModel.create(
+      [{
+        userId,
+        items: orderItems,
+        totalAmount,
+        paymentStatus: "Pending",
+        paymentProvider: "mock",
+        orderStatus: "Processing",
+        notifiedStatus: ["Processing"],
+        trackingHistory: [
+          { status: "Processing", message: "Order created, payment pending" },
+        ],
+      }],
+      { session }
+    );
 
-    // ---- REMOVE ONLY PURCHASED ITEMS FROM CART ----
     cart.items = cart.items.filter(
       item => !cartItemIds.includes(item._id.toString())
     );
 
     cart.totalAmount = cart.items.reduce(
-      (total, item) => total + item.quantity * item.priceAtAdd,
+      (sum, item) => sum + item.quantity * item.productsId.price,
       0
     );
 
-    await cart.save();
+    await cart.save({ session });
+    await session.commitTransaction();
 
-    // ---- EMAIL QUEUE ----
     await emailQueue.add("orderEmail", {
       to: req.user.email,
-      subject: "Your order has been placed!",
-      data: {
-        message: "Your order has been successfully created and is now Processing.",
-        productImage: order.items[0]?.productsId?.image || null,
-      },
+      subject: "Order Created (Payment Pending)",
+      data: { message: "Your order has been created. Please complete payment." },
     });
 
-    res.status(201).json({
-      message: "Order created successfully",
-      order,
-      remainingCartItems: cart.items,
-      remainingTotal: cart.totalAmount,
-    });
+    res.status(201).json({ message: "Order created", order });
   } catch (error) {
-    console.error("❌ Error creating order from cart:", error);
-    res.status(500).json({ message: "Internal server error" });
+    await session.abortTransaction();
+    res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -136,7 +123,10 @@ const createOrder = async (req, res) => {
     const { productsId } = req.params;
     let { quantity, size } = req.body;
 
-    size = size.trim().toLowerCase() === "free size" ? "Free Size" : size.toUpperCase();
+    size =
+      size.trim().toLowerCase() === "free size"
+        ? "Free Size"
+        : size.toUpperCase();
 
     const product = await productModel.findById(productsId);
     const stockEntry = await stockModel.findOne({ productsId });
@@ -144,23 +134,11 @@ const createOrder = async (req, res) => {
     if (!product || !stockEntry)
       return res.status(404).json({ message: "Product or stock not found" });
 
-    if (!(size in stockEntry.currentStock)) {
-      return res.status(400).json({
-        message: `Invalid size '${size}'. Valid sizes: ${Object.keys(stockEntry.currentStock).join(", ")}`,
-      });
-    }
+    const availableStock = stockEntry.currentStock[size] ?? 0;
+    if (availableStock < quantity)
+      return res.status(400).json({ message: "Insufficient stock" });
 
-    const availableStock = stockEntry.currentStock[size];
-
-    if (availableStock < quantity) {
-      return res.status(400).json({
-        message: `Insufficient stock for size ${size}`,
-      });
-    }
-
-    // Reduce stock
     stockEntry.currentStock[size] -= quantity;
-
     stockEntry.updatedStocks.push({
       size,
       previousStock: availableStock,
@@ -168,49 +146,60 @@ const createOrder = async (req, res) => {
       changeType: "REMOVE",
       reason: "Direct purchase",
     });
-
     await stockEntry.save();
 
-    // Create order
     const order = await orderModel.create({
       userId,
-      items: [
-        {
-          productsId: product._id,
-          quantity,
-          priceAtOrder: product.price,
-          size,
-        },
-      ],
+      items: [{
+        productsId: product._id,
+        quantity,
+        priceAtOrder: product.price,
+        size,
+      }],
       totalAmount: product.price * quantity,
       paymentStatus: "Pending",
+      paymentProvider: "mock",
       orderStatus: "Processing",
       notifiedStatus: ["Processing"],
       trackingHistory: [
-        { status: "Processing", message: "Order placed successfully" },
+        { status: "Processing", message: "Order placed, payment pending" },
       ],
     });
 
-    await emailQueue.add("orderEmail", {
-  to: req.user.email,
-  subject: "Order Confirmed!",
-  data: {
-    message: `Your order was placed successfully. Status: Processing.`,
-    productImage: order.items[0]?.productsId?.image || null
-  }
-});
-
-
-    res.status(201).json({
-      message: "Order created successfully",
-      order,
-    });
+    res.status(201).json({ message: "Order created", order });
   } catch (error) {
-    console.error("❌ Error creating direct order:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
+/* ------------------------------------------------------
+ 💳 MARK ORDER AS PAID (TEST MODE)
+------------------------------------------------------ */
+const markOrderAsPaid = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await orderModel.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (order.paymentStatus === "Paid")
+      return res.status(400).json({ message: "Already paid" });
+
+    order.paymentStatus = "Paid";
+    order.paymentProvider = "mock";
+    order.paymentId = `MOCK_${Date.now()}`;
+
+    order.trackingHistory.push({
+      status: "Paid",
+      message: "Payment successful (Test Mode)",
+    });
+
+    await order.save();
+    res.json({ message: "Payment successful", order });
+  } catch (error) {
+    res.status(500).json({ message: "Payment failed" });
+  }
+};
 
 /* ------------------------------------------------------
  ❌ CANCEL ORDER
@@ -220,134 +209,74 @@ const cancelOrder = async (req, res) => {
     const { userId } = req.user;
     const { orderId } = req.params;
 
-    const order = await orderModel.findById(orderId).populate("items.productsId");
+    const order = await orderModel.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (order.userId.toString() !== userId)
       return res.status(403).json({ message: "Unauthorized" });
 
-    if (order.orderStatus === "Cancelled")
-      return res.status(400).json({ message: "Order already cancelled" });
-
     if (order.orderStatus === "Delivered")
       return res.status(400).json({ message: "Cannot cancel delivered order" });
 
-    // Restore stock
-    for (let item of order.items) {
-      const product = await productModel.findById(item.productsId);
+    for (const item of order.items) {
       const stockEntry = await stockModel.findOne({ productsId: item.productsId });
-
-      if (product && stockEntry) {
-        const previousStock = stockEntry.currentStock[item.size];
+      if (stockEntry) {
         stockEntry.currentStock[item.size] += item.quantity;
-
         stockEntry.updatedStocks.push({
           size: item.size,
-          previousStock,
+          previousStock: stockEntry.currentStock[item.size] - item.quantity,
           newStock: stockEntry.currentStock[item.size],
           changeType: "ADD",
           reason: "Order cancelled",
         });
-
         await stockEntry.save();
       }
     }
 
     order.orderStatus = "Cancelled";
-    order.paymentStatus = "Refunded";
+    order.paymentStatus = order.paymentStatus === "Paid" ? "Refunded" : "Pending";
+
     order.trackingHistory.push({
       status: "Cancelled",
-      message: "Order was cancelled",
-    });
-    await order.save();
-
-    await emailQueue.add("orderEmail", {
-  to: req.user.email,
-  subject: "Order Cancelled",
-  data: {
-    message: `Your order has been cancelled and refund initiated.`,
-    productImage: order.items[0]?.productsId?.image || null
-  }
-});
-
-
-    res.status(200).json({
       message: "Order cancelled",
-      order,
     });
+
+    await order.save();
+    res.json({ message: "Order cancelled", order });
   } catch (error) {
-    console.error("❌ Error cancelling order:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 /* ------------------------------------------------------
- 📦 GET ALL ORDERS OF USER
+ 📦 GET ALL ORDERS
 ------------------------------------------------------ */
 const getAllOrders = async (req, res) => {
-  try {
-    const { userId } = req.user;
+  const orders = await orderModel
+    .find({ userId: req.user.userId })
+    .populate("items.productsId")
+    .sort({ placedAt: -1 });
 
-    const orders = await orderModel
-      .find({ userId })
-      .populate("items.productsId")
-      .sort({ placedAt: -1 });
-
-    if (!orders.length)
-      return res.status(404).json({ message: "No orders found" });
-
-    res.status(200).json({
-      message: "Orders fetched successfully",
-      totalOrders: orders.length,
-      orders,
-    });
-  } catch (error) {
-    console.error("❌ Error fetching orders:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
+  res.json({ totalOrders: orders.length, orders });
 };
-
 
 /* ------------------------------------------------------
  🚚 TRACK ORDER
 ------------------------------------------------------ */
 const trackOrderStatus = async (req, res) => {
-  try {
-    const { orderId } = req.params;
+  const order = await orderModel.findById(req.params.orderId);
+  if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const order = await orderModel.findById(orderId).populate("items.productsId");
-    if (!order) return res.status(404).json({ message: "Order not found" });
-
-    const timeline = [
-      { status: "Processing", estimatedTime: "10 mins" },
-      { status: "Packed", estimatedTime: "20 mins" },
-      { status: "Shipped", estimatedTime: "1 hour" },
-      { status: "Out for Delivery", estimatedTime: "4–6 hours" },
-      { status: "Delivered", estimatedTime: "Same day" },
-    ];
-
-    const index = timeline.findIndex(t => t.status === order.orderStatus);
-    const nextStep = index < timeline.length - 1 ? timeline[index + 1] : null;
-
-    res.status(200).json({
-      message: "Tracking info fetched",
-      orderId,
-      currentStatus: order.orderStatus,
-      nextStep,
-      timeline,
-      history: order.trackingHistory,
-    });
-  } catch (error) {
-    console.error("❌ Error tracking order:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
+  res.json({
+    currentStatus: order.orderStatus,
+    history: order.trackingHistory,
+  });
 };
-
 
 module.exports = {
   createOrderFromCart,
   createOrder,
+  markOrderAsPaid,
   cancelOrder,
   getAllOrders,
   trackOrderStatus,
