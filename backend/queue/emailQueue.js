@@ -1,12 +1,30 @@
-const Queue = require("bull");
+// config/emailQueue.js
+const { Redis } = require("@upstash/redis");
 require("dotenv").config();
 
-const emailQueue = new Queue("emailQueue", process.env.REDIS_URL);
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
-emailQueue.on("error", (err) => console.error("❌ Queue Error:", err));
-emailQueue.on("waiting", (jobId) => console.log(`🕓 Job waiting: ${jobId}`));
-emailQueue.on("active", (job) => console.log(`⚡ Processing job: ${job.id}`));
-emailQueue.on("completed", (job) => console.log(`✅ Job completed: ${job.id}`));
-emailQueue.on("failed", (job, err) => console.log(`❌ Job failed: ${job.id}, Error:`, err));
+// Add job to queue
+async function addEmailJob(jobData) {
+  await redis.lpush("emailQueue", JSON.stringify(jobData));
+  console.log("🕓 Job added to Upstash queue");
+}
 
-module.exports = emailQueue;
+// Process jobs
+async function processEmailJobs() {
+  while (true) {
+    const job = await redis.rpop("emailQueue");
+    if (job) {
+      const data = JSON.parse(job);
+      console.log("⚡ Processing job:", data);
+      // call sendSignupEmail / sendOrderUpdateEmail here
+    } else {
+      await new Promise((r) => setTimeout(r, 1000)); // wait 1s if empty
+    }
+  }
+}
+
+module.exports = { addEmailJob, processEmailJobs };
