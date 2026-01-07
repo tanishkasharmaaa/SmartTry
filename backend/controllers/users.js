@@ -1,7 +1,7 @@
 const userModel = require("../model/users");
 const cartModel = require("../model/cart");
 const bcrypt = require("bcrypt");
-const emailQueue = require("../queue/emailQueue");
+const {addEmailJob} = require("../queue/emailQueue");
 const jwt = require("jsonwebtoken");
 
 // ============================
@@ -73,7 +73,7 @@ const createUser = async (req, res) => {
     delete userData.password;
 
     // SEND EMAIL ASYNC
-    await emailQueue.add({
+    await addEmailJob({
       type: "signup",
       to: body.email,
       subject: "Welcome to SmartTry!",
