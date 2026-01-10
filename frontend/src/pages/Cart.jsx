@@ -18,6 +18,8 @@ import Login from "../components/login";
 import { Link } from "react-router-dom";
 import { FiShoppingCart } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import { useRecommendations } from "../context/reccomendationContext";
+import ProductCarousel from "../components/productCarousel";
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -25,12 +27,13 @@ const Cart = () => {
   const [loading, setLoading] = useState(true);
   const [pendingUpdates, setPendingUpdates] = useState({});
   const [selectedItems, setSelectedItems] = useState(new Set());
+  const { recommendations } = useRecommendations();
 
   const { authenticated, user } = useContext(AuthContext);
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
-  const pageBg = useColorModeValue("gray.50", "gray.900");
-  const cardBg = useColorModeValue("white", "gray.800");
+  const pageBg = useColorModeValue("gray.50", "black");
+  const cardBg = useColorModeValue("white", "gray.900");
   const textColor = useColorModeValue("gray.800", "gray.100");
   const mutedText = useColorModeValue("gray.600", "gray.400");
   const btnBg = useColorModeValue("black", "white");
@@ -61,7 +64,7 @@ const Cart = () => {
     const fetchCartItems = async () => {
       try {
         setLoading(true);
-        const res = await fetch("https://smarttry.onrender.com/api/cart", {
+        const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
           credentials: "include",
         });
         const data = await res.json();
@@ -81,7 +84,9 @@ const Cart = () => {
   const updateCartItem = async (cartItemId, updates) => {
     try {
       const res = await fetch(
-        `https://smarttry.onrender.com/api/cart/update-cartItem/${cartItemId}`,
+        `${
+          import.meta.env.VITE_API_URL
+        }/api/cart/update-cartItem/${cartItemId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -111,7 +116,9 @@ const Cart = () => {
   const handleDeleteCartItem = async (cartItemId) => {
     try {
       const res = await fetch(
-        `https://smarttry.onrender.com/api/cart/remove-cartItem/${cartItemId}`,
+        `${
+          import.meta.env.VITE_API_URL
+        }/api/cart/remove-cartItem/${cartItemId}`,
         {
           method: "DELETE",
           credentials: "include",
@@ -181,12 +188,11 @@ const Cart = () => {
                   <FiShoppingCart size={48} />
                 </Box>
                 <Text fontWeight="bold">Your cart is empty</Text>
-                <Button onClick={()=>navigate("/")}>Continue to shop</Button>
+                <Button onClick={() => navigate("/")}>Continue to shop</Button>
               </VStack>
             </Flex>
           ) : (
-            <VStack spacing={4} align="stretch" maxH="75vh"
-                    overflowY="auto">
+            <VStack spacing={4} align="stretch" maxH="75vh" overflowY="auto">
               {cartItems.map((item) => {
                 const editable = getEditableItem(item);
 
@@ -197,7 +203,6 @@ const Cart = () => {
                     p={4}
                     borderRadius="md"
                     flex="3"
-                    
                     pr={2}
                   >
                     <Flex gap={4} direction={{ base: "column", sm: "row" }}>
@@ -399,6 +404,20 @@ const Cart = () => {
             Proceed to Buy
           </Button>
         </Flex>
+      )}
+      {recommendations.length > 0 ? (
+        <ProductCarousel
+          apiUrl={"null"}
+          title="Recomendations For You "
+          arr={recommendations}
+        />
+      ) : (
+        <ProductCarousel
+          apiUrl={`${
+            import.meta.env.VITE_API_URL
+          }/api/products/paginated?limit=10`}
+          title="Related Products For You"
+        />
       )}
     </Box>
   );

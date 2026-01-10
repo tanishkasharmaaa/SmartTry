@@ -41,7 +41,7 @@ const Login = ({ buttonName, close }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [mode, setMode] = useState("main");
 
-  const GOOGLE_URL = "https://smarttry.onrender.com/auth/google";
+  const GOOGLE_URL = "${import.meta.env.VITE_API_URL}/auth/google";
 
   const [signupData, setSignupData] = useState({
     name: "",
@@ -83,13 +83,16 @@ const Login = ({ buttonName, close }) => {
     }
 
     try {
-      const response = await fetch("https://smarttry.onrender.com/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(signupData),
-      });
+      const response = await fetch(
+        "${import.meta.env.VITE_API_URL}/api/users",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(signupData),
+        }
+      );
 
       const data = await response.json();
 
@@ -126,14 +129,17 @@ const Login = ({ buttonName, close }) => {
   // ---------------- LOGIN ----------------
   const handleLogin = async () => {
     try {
-      const response = await fetch("https://smarttry.onrender.com/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(loginData),
-      });
+      const response = await fetch(
+        "${import.meta.env.VITE_API_URL}/api/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(loginData),
+        }
+      );
 
       const data = await response.json();
 
@@ -168,6 +174,11 @@ const Login = ({ buttonName, close }) => {
         type: "error",
       });
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
   };
 
   return (
@@ -237,7 +248,7 @@ const Login = ({ buttonName, close }) => {
                     Settings
                   </MenuItem>
 
-                  <MenuItem bg={bg} onClick={logout} color="red.400">
+                  <MenuItem bg={bg} onClick={handleLogout} color="red.400">
                     {buttonName}
                   </MenuItem>
                 </>

@@ -4,17 +4,21 @@ import TextRoll from "../components/textRoll";
 import ProductCarousel from "../components/productCarousel";
 import Footer from "../components/footer";
 import { useNavigate } from "react-router-dom";
-import {useRecommendations} from "../context/reccomendationContext"
+import { useRecommendations } from "../context/reccomendationContext";
+import AuthContext from "../context/authContext";
 
 const Home = () => {
   const [hover, setHover] = useState(false);
-  const {recommendations} = useRecommendations()
-  console.log(recommendations)
-  const firstText = recommendations?.length?"Recommendation For You  • ":"Explore The Latest Fashion Trends  • ";
+  const { recommendations } = useRecommendations();
+  console.log(recommendations, "-------");
+  const firstText =
+    recommendations?.length > 0
+      ? "Recommendation For You  • "
+      : "Explore The Latest Fashion Trends  • ";
   const secondText = "Explore The Trending Men Collection  • ";
-  const thirdText = "Explore The Trending Women Collection  • "; 
-  
-  const navigate = useNavigate()
+  const thirdText = "Explore The Trending Women Collection  • ";
+
+  const navigate = useNavigate();
 
   return (
     <Box>
@@ -93,8 +97,13 @@ const Home = () => {
       </Box>
 
       <ProductCarousel
-        apiUrl="https://smarttry.onrender.com/api/products/paginated?limit=10"
+        apiUrl={
+          recommendations?.length > 0
+            ? null
+            : "${import.meta.env.VITE_API_URL}/api/paginated?limit=10"
+        }
         title=""
+        arr={recommendations ?? []}
       />
 
       <Box>
@@ -172,9 +181,11 @@ const Home = () => {
       >
         <TextRoll center>{secondText}</TextRoll>
       </Box>
-      <ProductCarousel 
-      apiUrl={`https://smarttry.onrender.com/api/products/paginated?gender=men&limit=10`}
-      title=""
+      <ProductCarousel
+        apiUrl={`${
+          import.meta.env.VITE_API_URL
+        }/api/products/paginated?gender=Men&limit=10`}
+        title=""
       />
 
       <Box
@@ -250,9 +261,11 @@ const Home = () => {
       >
         <TextRoll center>{thirdText}</TextRoll>
       </Box>
-      <ProductCarousel 
-      apiUrl={`https://smarttry.onrender.com/api/products/paginated?gender=unisex&limit=10`}
-      title=""
+      <ProductCarousel
+        apiUrl={`${
+          import.meta.env.VITE_API_URL
+        }/api/products/paginated?gender=Women&limit=10`}
+        title=""
       />
 
       <Box
@@ -328,12 +341,14 @@ const Home = () => {
       >
         <TextRoll center>{thirdText}</TextRoll>
       </Box>
-      <ProductCarousel 
-      apiUrl={`https://smarttry.onrender.com/api/products/paginated?gender=unisex&limit=10`}
-      title=""
+      <ProductCarousel
+        apiUrl={`${
+          import.meta.env.VITE_API_URL
+        }/api/products/paginated?gender=Unisex&limit=10`}
+        title=""
       />
-      
-      <Footer/>
+
+      <Footer />
     </Box>
   );
 };

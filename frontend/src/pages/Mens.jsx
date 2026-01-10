@@ -22,6 +22,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import Pagination from "../components/pagination";
 import { ArrowRightIcon, StarIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
+import Footer from "../components/footer";
 
 const Mens = () => {
   const [products, setProducts] = useState([]);
@@ -113,10 +114,11 @@ const Mens = () => {
       setLoading(true);
 
       const params = {
-        gender: "men",
+        gender: "Men",
         page,
         limit: 15,
       };
+
       if (search) params.search = search;
       if (minPrice) params.minPrice = minPrice;
       if (maxPrice) params.maxPrice = maxPrice;
@@ -125,7 +127,6 @@ const Mens = () => {
         params.sortBy = "price";
         params.order = "asc";
       }
-
       if (sort === "price_desc") {
         params.sortBy = "price";
         params.order = "desc";
@@ -135,33 +136,32 @@ const Mens = () => {
       const cacheKey = `${CACHE_KEY}::${query}`;
 
       try {
-        // Try Cache
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached);
+
           if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
-            console.log(parsed.data);
             setProducts(parsed.data.products);
             setTotalPages(parsed.data.totalpages);
             setLoading(false);
             return;
+          } else {
+            localStorage.removeItem(cacheKey); // ✅ auto-delete expired
           }
         }
       } catch (err) {
         console.warn("Cache read error:", err);
       }
 
-      // Fetch from server
       try {
         const res = await fetch(
-          `https://smarttry.onrender.com/api/products/paginated?${query}`
+          `${import.meta.env.VITE_API_URL}/api/products/paginated?${query}`
         );
         const data = await res.json();
-        console.log(data);
+
         setProducts(data.products || []);
         setTotalPages(data.totalpages || 1);
 
-        // Save to cache
         localStorage.setItem(
           cacheKey,
           JSON.stringify({
@@ -386,6 +386,7 @@ const Mens = () => {
           }}
         />
       )}
+      <Footer />
     </Box>
   );
 };

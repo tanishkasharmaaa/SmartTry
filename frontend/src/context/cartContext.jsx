@@ -22,12 +22,9 @@ export const CartProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      const res = await fetch(
-        "https://smarttry.onrender.com/api/cart",
-        {
-          credentials: "include",
-        }
-      );
+      const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
+        credentials: "include",
+      });
 
       const data = await res.json();
 
@@ -53,8 +50,8 @@ export const CartProvider = ({ children }) => {
         cartCount,
         totalAmount,
         loading,
-        fetchCart,      // 👈 important
-        setCartItems,   // optional
+        fetchCart, // 👈 important
+        setCartItems, // optional
       }}
     >
       {children}

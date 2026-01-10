@@ -20,8 +20,9 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import Pagination from "../components/pagination";
-import { ArrowRightIcon,StarIcon } from "@chakra-ui/icons";
+import { ArrowRightIcon, StarIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
+import Footer from "../components/footer";
 
 const Unisex = () => {
   const [products, setProducts] = useState([]);
@@ -113,10 +114,11 @@ const Unisex = () => {
       setLoading(true);
 
       const params = {
-        gender: "unisex",
+        gender: "Unisex",
         page,
         limit: 15,
       };
+
       if (search) params.search = search;
       if (minPrice) params.minPrice = minPrice;
       if (maxPrice) params.maxPrice = maxPrice;
@@ -125,7 +127,6 @@ const Unisex = () => {
         params.sortBy = "price";
         params.order = "asc";
       }
-
       if (sort === "price_desc") {
         params.sortBy = "price";
         params.order = "desc";
@@ -135,33 +136,32 @@ const Unisex = () => {
       const cacheKey = `${CACHE_KEY}::${query}`;
 
       try {
-        // Try Cache
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached);
+
           if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
-            console.log(parsed.data)
             setProducts(parsed.data.products);
             setTotalPages(parsed.data.totalpages);
             setLoading(false);
             return;
+          } else {
+            localStorage.removeItem(cacheKey); // ✅ auto-delete expired
           }
         }
       } catch (err) {
         console.warn("Cache read error:", err);
       }
 
-      // Fetch from server
       try {
         const res = await fetch(
-          `https://smarttry.onrender.com/api/products/paginated?${query}`
+          `${import.meta.env.VITE_API_URL}/api/products/paginated?${query}`
         );
         const data = await res.json();
-        console.log(data);
+
         setProducts(data.products || []);
         setTotalPages(data.totalpages || 1);
 
-        // Save to cache
         localStorage.setItem(
           cacheKey,
           JSON.stringify({
@@ -321,7 +321,9 @@ const Unisex = () => {
                 bg={bgColor}
                 _hover={{ shadow: "lg", transform: "scale(1.02)" }}
                 transition="all 0.2s ease"
-                onClick={() => navigate(`/products/${product._id}-${product.name}`)}
+                onClick={() =>
+                  navigate(`/products/${product._id}-${product.name}`)
+                }
               >
                 <Box
                   aspectRatio={1}
@@ -341,34 +343,34 @@ const Unisex = () => {
                 </Box>
 
                 <Box p={2}>
-  <Text fontWeight="semibold" isTruncated>
-    {product.name}
-  </Text>
+                  <Text fontWeight="semibold" isTruncated>
+                    {product.name}
+                  </Text>
 
-  {/* ⭐ Rating Stack */}
-  <HStack spacing={1} mt={1}>
-    {[...Array(5)].map((_, i) => (
-      <StarIcon
-        key={i}
-        boxSize={3}
-        color={
-          i < Math.round(product.averageRating)
-            ? "yellow.400"
-            : "gray.300"
-        }
-      />
-    ))}
+                  {/* ⭐ Rating Stack */}
+                  <HStack spacing={1} mt={1}>
+                    {[...Array(5)].map((_, i) => (
+                      <StarIcon
+                        key={i}
+                        boxSize={3}
+                        color={
+                          i < Math.round(product.averageRating)
+                            ? "yellow.400"
+                            : "gray.300"
+                        }
+                      />
+                    ))}
 
-    <Text fontSize="xs" color="gray.500">
-      ({product.averageRating || 0})
-    </Text>
-  </HStack>
+                    <Text fontSize="xs" color="gray.500">
+                      ({product.averageRating || 0})
+                    </Text>
+                  </HStack>
 
-  {/* 💰 Price */}
-  <Text fontWeight="bold" color="gray.400" mt={1}>
-    ₹{product.price}
-  </Text>
-</Box>
+                  {/* 💰 Price */}
+                  <Text fontWeight="bold" color="gray.400" mt={1}>
+                    ₹{product.price}
+                  </Text>
+                </Box>
               </Box>
             ))}
       </SimpleGrid>
@@ -384,6 +386,7 @@ const Unisex = () => {
           }}
         />
       )}
+      <Footer />
     </Box>
   );
 };

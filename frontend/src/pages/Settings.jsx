@@ -35,7 +35,7 @@ const Settings = () => {
   const navigate = useNavigate();
 
   const bg = useColorModeValue("white", "black");
-  const cardBg = useColorModeValue("gray.50", "gray.800");
+  const cardBg = useColorModeValue("gray.50", "gray.900");
   const label = useColorModeValue("gray.600", "gray.400");
   const text = useColorModeValue("gray.700", "white");
 
@@ -175,7 +175,7 @@ const Settings = () => {
 
       /* ================= API CALL ================= */
       const res = await fetch(
-        `https://smarttry.onrender.com/api/users/${user._id}`,
+        `${import.meta.env.VITE_API_URL}/api/users/${user._id}`,
         {
           method: "PUT",
           credentials: "include",
@@ -488,7 +488,7 @@ const Settings = () => {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Bio</FormLabel>
+                <FormLabel>Interests</FormLabel>
                 <Textarea
                   name="interest"
                   placeholder="Enter interests (comma separated)"

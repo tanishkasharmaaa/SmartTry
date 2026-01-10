@@ -13,86 +13,126 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 
-const ProductCarousel = ({ apiUrl, title = "Products" }) => {
+const ProductCarousel = ({ apiUrl = null, arr = null, title = "Products" }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const carouselRef = useRef(null);
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
+  /* ================= THEME ================= */
   const cardBg = useColorModeValue("white", "gray.800");
   const cardText = useColorModeValue("gray.800", "gray.100");
-
   const arrowBg = useColorModeValue("blackAlpha.700", "whiteAlpha.300");
   const arrowColor = useColorModeValue("white", "black");
-
   const btnBg = useColorModeValue("black", "white");
   const btnColor = useColorModeValue("white", "black");
   const btnHover = useColorModeValue("gray.800", "gray.200");
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const CACHE_KEY = `carousel_${apiUrl}`;
+  const setWithExpiry = (key, value, ttl) => {
+  const now = Date.now();
+  const item = {
+    value,
+    expiry: now + ttl,
+  };
+  localStorage.setItem(key, JSON.stringify(item));
+};
 
-      // 1️⃣ Check cache first
-      const cachedData = localStorage.getItem(CACHE_KEY);
-      if (cachedData) {
-        setProducts(JSON.parse(cachedData));
-        setLoading(false);
+const getWithExpiry = (key) => {
+  const itemStr = localStorage.getItem(key);
+  if (!itemStr) return null;
+
+  const item = JSON.parse(itemStr);
+  if (Date.now() > item.expiry) {
+    localStorage.removeItem(key);
+    return null;
+  }
+  return item.value;
+};
+
+  /* ================= DIRECT ARRAY (NO EFFECT LOOP) ================= */
+  useEffect(() => {
+    if (Array.isArray(arr) && arr.length > 0) {
+      setProducts(arr);
+      setLoading(false);
+    }
+  }, [arr?.length]); // ✅ SAFE DEPENDENCY
+
+  /* ================= API FETCH ================= */
+  useEffect(() => {
+  if (!apiUrl || (Array.isArray(arr) && arr.length > 0)) return;
+
+  let ignore = false;
+
+  const fetchProducts = async () => {
+    const CACHE_KEY = `carousel_${apiUrl}`;
+
+    try {
+      setLoading(true);
+
+      const cached = getWithExpiry(CACHE_KEY);
+      if (cached) {
+        if (!ignore) {
+          setProducts(cached);
+          setLoading(false);
+        }
         return;
       }
 
-      // 2️⃣ Fetch from API
-      try {
-        setLoading(true);
-        const res = await fetch(apiUrl);
-        const data = await res.json();
-        const products = data.products || [];
-        setProducts(products);
+      const res = await fetch(apiUrl);
+      const data = await res.json();
+      const list = data.recommendations || data.products || [];
 
-        // 3️⃣ Save to cache
-        localStorage.setItem(CACHE_KEY, JSON.stringify(products));
-      } catch (error) {
-        console.error("Failed to fetch products:", error);
-      } finally {
-        setLoading(false);
+      if (!ignore) {
+        setProducts(list);
+        setWithExpiry(CACHE_KEY, list, 10 * 60 * 1000); // ✅ 10 min
       }
-    };
-
-    fetchProducts();
-  }, [apiUrl]);
-
-
-  const scroll = (direction) => {
-    if (!carouselRef.current) return;
-    const scrollAmount =
-      direction === "left"
-        ? -carouselRef.current.offsetWidth * 0.8
-        : carouselRef.current.offsetWidth * 0.8;
-    carouselRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    } catch (err) {
+      console.error("Carousel fetch failed:", err);
+    } finally {
+      if (!ignore) setLoading(false);
+    }
   };
 
-  if (loading)
+  fetchProducts();
+
+  return () => {
+    ignore = true;
+  };
+}, [apiUrl]);
+
+  /* ================= SCROLL ================= */
+  const scroll = (direction) => {
+    if (!carouselRef.current) return;
+    const offset = carouselRef.current.offsetWidth * 0.8;
+    carouselRef.current.scrollBy({
+      left: direction === "left" ? -offset : offset,
+      behavior: "smooth",
+    });
+  };
+
+  /* ================= STATES ================= */
+  if (loading) {
     return (
       <Box textAlign="center" py={10}>
         <Spinner size="xl" />
       </Box>
     );
+  }
 
-  if (!products.length)
-    return <Text textAlign="center">No products available.</Text>;
-
+  /* ================= UI ================= */
   return (
-    <Box>
-      <Text fontSize="2xl" fontWeight="bold" mb={1}>
+    <Box my={4}>
+      <Text fontSize="2xl" fontWeight="bold" mb={2}>
         {title}
       </Text>
 
       <Box position="relative">
-        {/* ⬅ Left Arrow */}
+       {
+        products.length>0&&(<>
         <IconButton
           icon={<ChevronLeftIcon boxSize={6} />}
           position="absolute"
-          left="5px"
+          left="6px"
           top="50%"
           transform="translateY(-50%)"
           zIndex={10}
@@ -100,14 +140,13 @@ const ProductCarousel = ({ apiUrl, title = "Products" }) => {
           color={arrowColor}
           _hover={{ bg: arrowBg }}
           onClick={() => scroll("left")}
-          aria-label="Scroll left"
+          aria-label="Scroll Left"
         />
 
-        {/* ➡ Right Arrow */}
         <IconButton
           icon={<ChevronRightIcon boxSize={6} />}
           position="absolute"
-          right="5px"
+          right="6px"
           top="50%"
           transform="translateY(-50%)"
           zIndex={10}
@@ -115,10 +154,11 @@ const ProductCarousel = ({ apiUrl, title = "Products" }) => {
           color={arrowColor}
           _hover={{ bg: arrowBg }}
           onClick={() => scroll("right")}
-          aria-label="Scroll right"
+          aria-label="Scroll Right"
         />
 
-        {/* Carousel */}
+        </>)
+       } 
         <HStack
           ref={carouselRef}
           overflowX="auto"
@@ -133,33 +173,31 @@ const ProductCarousel = ({ apiUrl, title = "Products" }) => {
           {products.map((product) => (
             <VStack
               key={product._id}
-              minW={{ base: "200px", sm: "220px", md: "250px", lg: "280px" }}
+              minW={{ base: "200px", md: "240px", lg: "280px" }}
               bg={cardBg}
               color={cardText}
               borderRadius="lg"
               p={3}
               spacing={2}
               boxShadow="md"
-              transition="transform 0.25s ease"
-              _hover={{ transform: "translateY(-4px)" }}
+              transition="0.3s"
+              _hover={{ transform: "translateY(-6px)" }}
               flexShrink={0}
             >
               <Image
                 src={product.image?.replace(/\n/g, "").trim()}
                 alt={product.name}
-                h={{ base: "140px", sm: "160px", md: "200px", lg: "220px" }}
+                h={{ base: "140px", md: "180px", lg: "210px" }}
                 w="100%"
                 objectFit="cover"
                 borderRadius="md"
               />
 
-              <Text fontWeight="semibold" fontSize={{ base: "sm", md: "md" }} noOfLines={1}>
+              <Text fontWeight="semibold" noOfLines={1}>
                 {product.name}
               </Text>
 
-              <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }}>
-                ₹{product.price}
-              </Text>
+              <Text fontWeight="bold">₹{product.price}</Text>
 
               <Button
                 w="100%"
@@ -167,7 +205,9 @@ const ProductCarousel = ({ apiUrl, title = "Products" }) => {
                 color={btnColor}
                 _hover={{ bg: btnHover }}
                 size="sm"
-                onClick={()=>navigate(`/products/${product._id}-${product.name}`)}
+                onClick={() =>
+                  navigate(`/products/${product._id}-${product.name}`)
+                }
               >
                 View Product
               </Button>

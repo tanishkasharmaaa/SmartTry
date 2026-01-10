@@ -30,12 +30,16 @@ import { useContext } from "react";
 import AuthContext from "../context/authContext";
 import Login from "../components/login";
 import { useToast } from "../context/useToast";
+import ProductCarousel from "../components/productCarousel";
+import { useRecommendations } from "../context/reccomendationContext";
+import { useNavigate } from "react-router-dom";
 
 const SingleProd = () => {
   const { slug } = useParams();
   const productId = slug.split("-")[0];
 
-  const [product, setProduct] = useState(null);
+  const { recommendations } = useRecommendations();
+  const [product, setProduct] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState("");
   const [reviews, setReviews] = useState([]);
@@ -46,6 +50,7 @@ const SingleProd = () => {
   const { authenticated, user } = useContext(AuthContext);
   const [selectedQty, setSelectedQty] = useState(1);
   const [alreadyInCart, setAlreadyInCart] = useState(false);
+  const navigate = useNavigate();
 
   // Background color based on light/dark mode
   const addToCartBg = useColorModeValue("black", "gray.700");
@@ -66,33 +71,49 @@ const SingleProd = () => {
 
   useEffect(() => {
     let isMounted = true;
+
     const CACHE_KEY = `product_${productId}`;
+    const CACHE_EXPIRY = 10 * 60 * 1000; // 10 minutes
 
     const fetchProduct = async () => {
       try {
-        // 1️⃣ Check cache first
+        // 1️⃣ Check cache with expiry
         const cachedProduct = localStorage.getItem(CACHE_KEY);
         if (cachedProduct) {
-          console.log(JSON.parse(cachedProduct));
-          setProduct(JSON.parse(cachedProduct));
-          setLoading(false);
-          return;
+          const parsed = JSON.parse(cachedProduct);
+
+          if (Date.now() - parsed.timestamp < CACHE_EXPIRY) {
+            if (isMounted) {
+              setProduct(parsed.data);
+              setLoading(false);
+            }
+            return;
+          } else {
+            localStorage.removeItem(CACHE_KEY); // 🧹 delete expired
+          }
         }
 
         // 2️⃣ Fetch from API
         const res = await fetch(
-          `https://smarttry.onrender.com/api/products/paginated?search=${productId}`
+          `${
+            import.meta.env.VITE_API_URL
+          }/api/products/paginated?search=${productId}`
         );
         const data = await res.json();
         if (!isMounted) return;
 
         const product = data.products?.[0] || null;
-        console.log(data);
 
-        // 3️⃣ Save to cache
-        localStorage.setItem(CACHE_KEY, JSON.stringify(product));
+        // 3️⃣ Save to cache with timestamp
+        localStorage.setItem(
+          CACHE_KEY,
+          JSON.stringify({
+            data: product,
+            timestamp: Date.now(),
+          })
+        );
 
-        // setProduct(product);
+        setProduct(product);
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -108,9 +129,8 @@ const SingleProd = () => {
   }, [productId]);
 
   const hasUserReviewed =
-    authenticated &&
-    reviews.some((review) => review?.userId?._id === user?.userId);
-
+    authenticated && reviews.some((item) => item.userId?._id === user._id);
+  console.log(hasUserReviewed);
   const handleSubmitReview = async () => {
     if (!userRating || !comment.trim()) {
       showToast({
@@ -125,7 +145,7 @@ const SingleProd = () => {
       setSubmitting(true);
 
       const res = await fetch(
-        `https://smarttry.onrender.com/api/reviews/add-review/${productId}`,
+        `${import.meta.env.VITE_API_URL}/api/reviews/add-review/${productId}`,
         {
           method: "POST",
           credentials: "include",
@@ -160,8 +180,7 @@ const SingleProd = () => {
         description: "Thank you for sharing your feedback",
         type: "success",
       });
-       window.location.reload()
-      
+      window.location.reload();
     } catch (error) {
       console.error(error);
       showToast({
@@ -177,13 +196,19 @@ const SingleProd = () => {
   useEffect(() => {
     if (!productId) return;
 
-    fetch(`https://smarttry.onrender.com/api/reviews/${productId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Fetched reviews:", data.reviews);
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/reviews/${productId}`
+        );
+        const data = await res.json();
         setReviews(data.reviews || []);
-      })
-      .catch(console.error);
+        console.log(data);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchReviews();
   }, [productId]);
 
   useEffect(() => {
@@ -232,7 +257,7 @@ const SingleProd = () => {
 
     try {
       const res = await fetch(
-        `https://smarttry.onrender.com/api/cart/${productId}`,
+        `${import.meta.env.VITE_API_URL}/api/cart/${productId}`,
         {
           method: "POST",
           credentials: "include",
@@ -245,7 +270,7 @@ const SingleProd = () => {
       );
 
       const data = await res.json();
-      console.log(data)
+      console.log(data);
 
       // 🟡 Already in cart
       if (res.status === 409) {
@@ -282,40 +307,85 @@ const SingleProd = () => {
 
   useEffect(() => {
     const checkIfInCart = async () => {
-      if (!selectedSize) {
-        setAlreadyInCart(false);
-        return;
-      }
-
       try {
-        const res = await fetch("https://smarttry.onrender.com/api/cart", {
-          method: "GET",
+        const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
         });
 
         const data = await res.json();
+        console.log(data);
+        if (!res.ok || !data.cartItems) return;
 
-        if (res.ok && data.cartItems) {
-          // Check if current product with selected size exists
-          const exists = data.cartItems.some(
-            (item) => item.productId === productId && item.size === selectedSize
-          );
+        const exists = data.cartItems.some(
+          (item) =>
+            item.product?._id === productId && item.size === selectedSize
+        );
+        console.log(exists);
 
-          setAlreadyInCart(exists);
-        } else {
-          setAlreadyInCart(false);
-        }
-      } catch (error) {
-        console.error("Error checking cart:", error);
+        setAlreadyInCart(exists);
+      } catch (err) {
+        console.error(err);
         setAlreadyInCart(false);
       }
     };
 
     checkIfInCart();
-  }, [selectedSize, productId]);
+  }, [productId, selectedSize]);
+
+  const buyNow = () => {
+    if (!selectedSize) {
+      showToast({
+        title: "Size required",
+        description: "Please select a size",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!selectedQty || selectedQty < 1) {
+      showToast({
+        title: "Quantity required",
+        description: "Please select quantity",
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!product) {
+      showToast({
+        title: "Product not loaded",
+        description: "Please wait and try again",
+        type: "error",
+      });
+      return;
+    }
+
+    // Save the selected product in localStorage
+    const selectedItem = {
+      productId: product._id,
+      title: product.title,
+      price: product.price,
+      image: product.image, // or product.images?.[0]
+      size: selectedSize,
+      quantity: selectedQty,
+    };
+
+    // 🔥 ALWAYS STORE AS ARRAY
+    localStorage.setItem("selectedCartItems", JSON.stringify([selectedItem]));
+
+    // 🔥 MARK CHECKOUT TYPE
+    localStorage.setItem("checkoutType", "BUY_NOW");
+
+    showToast({
+      title: "Proceed to Checkout",
+      description: "Item saved. Redirecting to checkout...",
+      type: "success",
+    });
+
+    setTimeout(() => {
+      navigate("/checkout");
+    }, 500);
+  };
 
   if (!loading && !product) {
     return <Text fontSize="xl">Product not found</Text>;
@@ -348,7 +418,7 @@ const SingleProd = () => {
 
             <HStack mb={2}>
               <Text fontSize="2xl" fontWeight="semibold" color={textColor}>
-               ₹{product.price}
+                ₹{product.price}
               </Text>
               {product.discount && (
                 <Badge colorScheme="green">{product.discount}% OFF</Badge>
@@ -370,6 +440,21 @@ const SingleProd = () => {
             <Text mb={4} color="gray.600">
               {product.description}
             </Text>
+
+            <Box mb={4} mr={4} display="flex" gap={2} flexWrap="wrap">
+              {Array.isArray(product?.tags) &&
+                product.tags.map((tag, index) => (
+                  <Badge
+                    key={`${tag}-${index}`}
+                    colorScheme="green"
+                    px={2}
+                    py={1}
+                    borderRadius="md"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+            </Box>
 
             {/* Size Selector */}
             <Box mb={4}>
@@ -456,6 +541,7 @@ const SingleProd = () => {
                 isDisabled={
                   !selectedSize || (stockQty !== null && stockQty === 0)
                 }
+                onClick={buyNow}
               >
                 Buy Now
               </Button>
@@ -664,6 +750,20 @@ const SingleProd = () => {
           )}
         </VStack>
       </Box>
+      {recommendations.length > 0 ? (
+        <ProductCarousel
+          apiUrl={"null"}
+          title="Recomendations For You "
+          arr={recommendations}
+        />
+      ) : (
+        <ProductCarousel
+          apiUrl={`${
+            import.meta.env.VITE_API_URL
+          }/api/products/paginated?gender=${product.gender}&limit=10`}
+          title="Related Products For You"
+        />
+      )}
     </Box>
   );
 };

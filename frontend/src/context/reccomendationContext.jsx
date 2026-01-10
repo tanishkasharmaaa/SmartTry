@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import axios from "axios";
 import AuthContext from "./authContext"; // your existing auth context
 
 const RecommendationContext = createContext();
@@ -17,12 +16,17 @@ export const RecommendationProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      const res = await axios.get(
-        `https://smarttry.onrender.com/api/recommendations/${user._id}`,
-        { withCredentials: true }
+      //   const res = await axios.get(
+      //     `${import.meta.env.VITE_API_URL}/api/recommendations/${user._id}`,
+      //     { withCredentials: true }
+      //   );
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/recommendations/${user._id}`
       );
+      const data = await res.json();
+      console.log(data);
 
-      setRecommendations(res|| []);
+      setRecommendations(data.recommendations || []);
     } catch (err) {
       console.error(err);
       setError("Failed to load recommendations");

@@ -13,7 +13,7 @@ const AuthProvider = ({ children }) => {
     const fetchProfile = async () => {
       try {
         const response = await fetch(
-          "https://smarttry.onrender.com/auth/profile",
+          "${import.meta.env.VITE_API_URL}/auth/profile",
           {
             method: "GET",
             credentials: "include",
@@ -45,7 +45,7 @@ const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch("https://smarttry.onrender.com/auth/logout", {
+      await fetch("${import.meta.env.VITE_API_URL}/auth/logout", {
         method: "GET",
         credentials: "include",
       });

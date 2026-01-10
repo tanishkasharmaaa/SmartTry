@@ -12,11 +12,17 @@ import PrivateRoute from "./routes/privateRoute";
 import Cart from "./pages/Cart";
 import Order from "./pages/Order";
 import Settings from "./pages/Settings";
+import CheckoutPage from "./pages/Checkout";
+import ChatWidget from "./components/ChatWidget";
+import { useContext } from "react";
+import AuthContext from "./context/authContext";
 
 function App() {
+  const {authenticated} = useContext(AuthContext);
   return (
     <>
       <Navbar />
+     
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/men" element={<Mens />} />
@@ -34,8 +40,11 @@ function App() {
           }
         />
         <Route path="/settings" element={<PrivateRoute><Settings/></PrivateRoute>}/>
+        <Route path="/checkout" element={<PrivateRoute><CheckoutPage/></PrivateRoute>}/>
       </Routes>
-      
+     {
+      authenticated&&<ChatWidget/>
+     } 
     </>
   );
 }
