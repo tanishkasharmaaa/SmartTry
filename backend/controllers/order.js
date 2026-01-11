@@ -333,6 +333,31 @@ const getAllOrders = async (req, res) => {
   res.json({ totalOrders: orders.length, orders }).s;
 };
 
+const getSingleOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user.userId;
+
+    if (!orderId) {
+      return res.status(400).json({ message: "Order ID is required" });
+    }
+
+    const order = await orderModel
+      .findOne({ _id: orderId, userId }) // 🔐 user security
+      .populate("items.productsId")
+      .lean();
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.status(200).json({ order });
+  } catch (error) {
+    console.error("Get Single Order Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 /* ------------------------------------------------------
  🚚 TRACK ORDER
 ------------------------------------------------------ */
@@ -353,4 +378,5 @@ module.exports = {
   cancelOrder,
   getAllOrders,
   trackOrderStatus,
+  getSingleOrder
 };

@@ -6,7 +6,8 @@ const {
   createOrderFromCart,
   getAllOrders,
   trackOrderStatus,
-  markOrderAsPaid
+  markOrderAsPaid,
+  getSingleOrder
 } = require("../controllers/order");
 
 const orderRouter = express.Router();
@@ -27,10 +28,15 @@ orderRouter.patch("/cancel/:orderId", authMiddleware, cancelOrder);
 // 🧾 Get all user orders
 orderRouter.get("/", authMiddleware, getAllOrders);
 
+orderRouter.get("/order/:orderId", authMiddleware, getSingleOrder);
+
+
 // 🚚 Track order progress
 orderRouter.get("/track/:orderId", authMiddleware, trackOrderStatus);
 
 orderRouter.post("/orders/:orderId/pay", authMiddleware, markOrderAsPaid);
+
+
 
 
 module.exports = orderRouter;
