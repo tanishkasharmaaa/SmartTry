@@ -36,6 +36,12 @@ const Order = () => {
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [paymentMethod, setPaymentMethod] = useState("upi");
+  const paymentProviderMap = {
+    cod: "COD",
+    card: "CREDIT/DEBIT",
+    upi: "UPI",
+  };
+
   const [status, setStatus] = useState("loading");
 
   /* MOCK DATA */
@@ -73,10 +79,13 @@ const Order = () => {
       const buyNow = JSON.parse(localStorage.getItem("buyNowProduct"));
       console.log(buyNow);
 
-      url = `${import.meta.env.VITE_API_URL}/api/order/buy/${buyNow[0]?.product._id}`;
+      url = `${import.meta.env.VITE_API_URL}/api/order/buy/${
+        buyNow[0]?.product._id
+      }`;
       body = {
-        quantity: buyNow.quantity,
-        size: buyNow.size,
+        quantity: buyNow[0].quantity,
+        size: buyNow[0].size,
+        paymentProvider: paymentProviderMap[paymentMethod] || "UNKNOWN",
       };
     }
 
@@ -89,14 +98,14 @@ const Order = () => {
       url = `${
         import.meta.env.VITE_API_URL
       }/api/order/buy-through-cart/${cartId}`;
-      body = { cartItemIds };
+      body = { cartItemIds, paymentProvider: paymentProviderMap[paymentMethod] || "UNKNOWN"};
     }
 
     const res = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -104,7 +113,9 @@ const Order = () => {
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.message || "Order creation failed");
+      const error = new Error(data.message || "Order creation failed");
+      error.code = data.code; // 👈 IMPORTANT
+      throw error;
     }
 
     return data.order;
@@ -152,56 +163,61 @@ const Order = () => {
 
   /* PAYMENT FLOW */
   const handlePayment = async () => {
-  onOpen();
+    onOpen();
 
-  try {
-    // ================= COD =================
-    if (paymentMethod === "cod") {
-      setStep("processing");
-      await createOrderAPI();
-      setTimeout(() => setStep("success"), 1500);
-      return;
+    try {
+      // ================= COD =================
+      if (paymentMethod === "cod") {
+        setStep("processing");
+        await createOrderAPI();
+        setTimeout(() => setStep("success"), 1500);
+        return;
+      }
+
+      // ================= CARD =================
+      if (paymentMethod === "card") {
+        if (!validateCardForm()) return;
+        setStep("pin");
+        return;
+      }
+
+      // ================= UPI =================
+      if (paymentMethod === "upi") {
+        if (!validateUpi()) return;
+
+        setStep("processing");
+        await createOrderAPI();
+        setTimeout(() => setStep("success"), 1500);
+        return;
+      }
+    } catch (err) {
+      // 🔐 AUTH ERROR HANDLING (CORRECT WAY)
+      if (err.code === "TOKEN_EXPIRED" || err.code === "NO_TOKEN") {
+        alert("Session expired. Please login again.");
+
+        localStorage.clear();
+        window.location.href = "/login";
+        return;
+      }
+
+      if (err.code === "INVALID_TOKEN") {
+        alert("Authentication error. Please login again.");
+        localStorage.clear();
+        window.location.href = "/login";
+        return;
+      }
+
+      alert(err.message || "Payment failed");
+      onClose();
     }
-
-    // ================= CARD =================
-    if (paymentMethod === "card") {
-      if (!validateCardForm()) return;
-
-      setStep("pin");
-      return;
-    }
-
-    // ================= UPI =================
-    if (paymentMethod === "upi") {
-      if (!validateUpi()) return;
-
-      setStep("processing");
-      await createOrderAPI();
-      setTimeout(() => setStep("success"), 1500);
-      return;
-    }
-  } catch (err) {
-    // 🔐 JWT EXPIRED HANDLING
-    if (err.message.includes("expired")) {
-      alert("Session expired. Please login again.");
-      // localStorage.clear();
-      // window.location.href = "/login";
-      return;
-    }
-
-    alert(err.message || "Payment failed");
-    onClose();
-  }
-};
-
+  };
 
   if (step === "success") {
-  localStorage.removeItem("checkoutType");
-  localStorage.removeItem("buyNowProduct");
-  localStorage.removeItem("selectedCartItems");
-  localStorage.removeItem("selectedCartItemIds");
-}
-
+    localStorage.removeItem("checkoutType");
+    localStorage.removeItem("buyNowProduct");
+    localStorage.removeItem("selectedCartItems");
+    localStorage.removeItem("selectedCartItemIds");
+  }
 
   return (
     <Box bg={bg} minH="100vh" py={8}>

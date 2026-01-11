@@ -94,8 +94,8 @@ const orderSchema = new mongoose.Schema({
   deliveredAt: { type: Date },
   paymentProvider: {
     type: String,
-    enum: ["mock", "razorpay", "stripe"],
-    default: "mock",
+    enum: ["COD","UPI","CREDIT/DEBIT"],
+    default: "COD",
   },
   paymentId: {
     type: String,

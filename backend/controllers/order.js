@@ -16,6 +16,7 @@ const createOrderFromCart = async (req, res) => {
     const userId = req.user.userId;
     const { cartId } = req.params;
     const { cartItemIds } = req.body;
+    const { paymentProvider } = req.body;
 
     if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
       return res.status(400).json({ message: "No cart items selected" });
@@ -100,7 +101,7 @@ const createOrderFromCart = async (req, res) => {
           items: orderItems,
           totalAmount,
           paymentStatus: "Pending",
-          paymentProvider: "mock",
+          paymentProvider: paymentProvider || "COD",
           orderStatus: "Processing",
           notifiedStatus: ["Processing"],
           trackingHistory: [
@@ -160,7 +161,7 @@ const createOrder = async (req, res) => {
     const userName = req.user.name || "Customer";
 
     const { productsId } = req.params;
-    let { quantity = 1, size } = req.body;
+    let { quantity = 1, size,paymentProvider = "COD" } = req.body;
 
     quantity = Number(quantity);
     if (quantity <= 0) {
@@ -222,7 +223,7 @@ const createOrder = async (req, res) => {
       ],
       totalAmount: product.price * quantity,
       paymentStatus: "Pending",
-      paymentProvider: "mock",
+      paymentProvider: paymentProvider,
       orderStatus: "Processing",
       notifiedStatus: ["Processing"],
       trackingHistory: [
@@ -278,7 +279,7 @@ const markOrderAsPaid = async (req, res) => {
       return res.status(400).json({ message: "Already paid" });
 
     order.paymentStatus = "Paid";
-    order.paymentProvider = "mock";
+    order.paymentProvider = "COD";
     order.paymentId = `MOCK_${Date.now()}`;
 
     order.trackingHistory.push({
