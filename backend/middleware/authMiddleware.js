@@ -1,14 +1,13 @@
-require("dotenv").config();
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const getToken = (req) => {
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer ")
-  ) {
+  // Check Authorization header
+  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
     return req.headers.authorization.split(" ")[1];
   }
 
+  // Check cookies
   if (req.cookies?.token) {
     return req.cookies.token;
   }
@@ -21,30 +20,38 @@ const authMiddleware = (req, res, next) => {
     const token = getToken(req);
 
     if (!token) {
+      console.warn("Auth Middleware: No token found in request");
       return res.status(401).json({
         message: "Authentication required",
         code: "NO_TOKEN",
       });
     }
+console.log(token)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    } catch (err) {
+      console.error("JWT Verify Error:", err.name, err.message);
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+      if (err.name === "TokenExpiredError") {
+        return res.status(401).json({
+          message: "Session expired. Please login again.",
+          code: "TOKEN_EXPIRED",
+        });
+      }
 
-    req.user = decoded; // { userId, email, name, seller }
-    next();
-  } catch (error) {
-    console.error("Auth Middleware Error:", error.message);
-
-    if (error.name === "TokenExpiredError") {
       return res.status(401).json({
-        message: "Session expired. Please login again.",
-        code: "TOKEN_EXPIRED",
+        message: "Invalid authentication token",
+        code: "INVALID_TOKEN",
       });
     }
 
-    return res.status(401).json({
-      message: "Invalid authentication token",
-      code: "INVALID_TOKEN",
-    });
+    // ✅ Token valid
+    req.user = decoded; // { userId, email, name, seller }
+    next();
+  } catch (error) {
+    console.error("Auth Middleware Unexpected Error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 

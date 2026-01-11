@@ -3,7 +3,7 @@ const orderModel = require("../model/order");
 const productModel = require("../model/products");
 const stockModel = require("../model/stocks");
 const mongoose = require("mongoose");
-const emailQueue = require("../queue/emailQueue");
+const {addEmailJob} = require("../queue/emailQueue");
 
 /* ------------------------------------------------------
  🧾 CREATE ORDER FROM CART
@@ -17,7 +17,7 @@ const createOrderFromCart = async (req, res) => {
     const { cartId } = req.params;
     const { cartItemIds } = req.body;
 
-    if (!Array.isArray(cartItemIds) || !cartItemIds.length) {
+    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
       return res.status(400).json({ message: "No cart items selected" });
     }
 
@@ -41,21 +41,33 @@ const createOrderFromCart = async (req, res) => {
 
     let totalAmount = 0;
     const orderItems = [];
+    const emailItems = [];
 
     for (const item of selectedItems) {
       const product = item.productsId;
       const stockEntry = product.stockId;
 
-      const availableStock = stockEntry.currentStock[item.size] ?? 0;
+      // ✅ SAFE SIZE
+      let size = item.size;
+      if (!size || typeof size !== "string") {
+        size = "Free Size";
+      } else {
+        size =
+          size.trim().toLowerCase() === "free size"
+            ? "Free Size"
+            : size.toUpperCase();
+      }
+
+      const availableStock = stockEntry.currentStock[size] ?? 0;
       if (availableStock < item.quantity) {
         throw new Error(`Insufficient stock for ${product.title}`);
       }
 
-      stockEntry.currentStock[item.size] -= item.quantity;
+      stockEntry.currentStock[size] -= item.quantity;
       stockEntry.updatedStocks.push({
-        size: item.size,
+        size,
         previousStock: availableStock,
-        newStock: stockEntry.currentStock[item.size],
+        newStock: stockEntry.currentStock[size],
         changeType: "REMOVE",
         reason: "Order placed from cart",
       });
@@ -63,15 +75,24 @@ const createOrderFromCart = async (req, res) => {
       await stockEntry.save({ session });
 
       totalAmount += item.quantity * product.price;
+
       orderItems.push({
         productsId: product._id,
         quantity: item.quantity,
         priceAtOrder: product.price,
-        size: item.size,
+        size,
+      });
+
+      // ✅ EMAIL DATA BUILT HERE (SAFE)
+      emailItems.push({
+        title: product.name,
+        image: product.image || product.images?.[0] || null,
+        quantity: item.quantity,
+        size,
+        price: product.price,
       });
     }
 
-    // Create order
     const [order] = await orderModel.create(
       [
         {
@@ -90,7 +111,7 @@ const createOrderFromCart = async (req, res) => {
       { session }
     );
 
-    // Remove selected items from cart
+    // Remove ordered items from cart
     cart.items = cart.items.filter(
       (item) => !cartItemIds.includes(item._id.toString())
     );
@@ -103,26 +124,14 @@ const createOrderFromCart = async (req, res) => {
     await cart.save({ session });
     await session.commitTransaction();
 
-    // Add email job to queue
-    const emailQueue = require("../queue/emailQueue"); // make sure path is correct
-    await emailQueue.add({
+    // ✅ QUEUE EMAIL
+    await addEmailJob({
       type: "orderUpdate",
       to: req.user.email,
       orderId: order._id,
       status: "Processing",
       totalAmount: order.totalAmount,
-      items: order.items.map((item) => {
-        const product = cart.items.find(
-          (ci) => ci.productsId._id.toString() === item.productsId.toString()
-        )?.productsId || item.productsId;
-        return {
-          title: product.title,
-          image: product.image || product.images?.[0] || null,
-          quantity: item.quantity,
-          size: item.size,
-          price: item.priceAtOrder,
-        };
-      }),
+      items: emailItems,
       message: `Hi ${req.user.name || "Customer"}, your order #${order._id} has been created. Please complete payment.`,
     });
 
@@ -136,33 +145,52 @@ const createOrderFromCart = async (req, res) => {
   }
 };
 
+
 /* ------------------------------------------------------
  🛍️ DIRECT BUY ORDER
 ------------------------------------------------------ */
 const createOrder = async (req, res) => {
   try {
-    const { userId } = req.user;
-    const { productsId } = req.params;
-    let { quantity, size } = req.body;
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // Normalize size
-    size =
-      size.trim().toLowerCase() === "free size"
-        ? "Free Size"
-        : size.toUpperCase();
+    const userId = req.user.userId;
+    const userEmail = req.user.email;
+    const userName = req.user.name || "Customer";
+
+    const { productsId } = req.params;
+    let { quantity = 1, size } = req.body;
+
+    quantity = Number(quantity);
+    if (quantity <= 0) {
+      return res.status(400).json({ message: "Invalid quantity" });
+    }
+
+    // ✅ SAFE SIZE NORMALIZATION
+    if (!size || typeof size !== "string") {
+      size = "Free Size";
+    } else {
+      size =
+        size.trim().toLowerCase() === "free size"
+          ? "Free Size"
+          : size.trim().toUpperCase();
+    }
 
     const product = await productModel.findById(productsId);
     const stockEntry = await stockModel.findOne({ productsId });
 
-    if (!product || !stockEntry)
+    if (!product || !stockEntry) {
       return res.status(404).json({ message: "Product or stock not found" });
+    }
 
-    const availableStock = stockEntry.currentStock[size] ?? 0;
-    if (availableStock < quantity)
+    const availableStock = stockEntry.currentStock?.[size] ?? 0;
+    if (availableStock < quantity) {
       return res.status(400).json({ message: "Insufficient stock" });
+    }
 
-    // Update stock
-    stockEntry.currentStock[size] -= quantity;
+    // ✅ ATOMIC STOCK UPDATE
+    stockEntry.currentStock[size] = availableStock - quantity;
     stockEntry.updatedStocks.push({
       size,
       previousStock: availableStock,
@@ -170,14 +198,23 @@ const createOrder = async (req, res) => {
       changeType: "REMOVE",
       reason: "Direct purchase",
     });
+
     await stockEntry.save();
 
-    // Create order
+    // ✅ PRODUCT SNAPSHOT (IMMUTABLE)
+    const productSnapshot = {
+      name: product.name || product.title || "Product",
+      price: product.price,
+      image:
+        product.image
+    };
+
     const order = await orderModel.create({
       userId,
       items: [
         {
           productsId: product._id,
+          productSnapshot,
           quantity,
           priceAtOrder: product.price,
           size,
@@ -189,34 +226,42 @@ const createOrder = async (req, res) => {
       orderStatus: "Processing",
       notifiedStatus: ["Processing"],
       trackingHistory: [
-        { status: "Processing", message: "Order placed, payment pending" },
+        {
+          status: "Processing",
+          message: "Order placed, payment pending",
+        },
       ],
     });
 
-    // Add order email to Redis queue
-    const emailQueue = require("../queue/emailQueue"); // make sure the path is correct
-    await emailQueue.add({
-      type: "orderUpdate",
-      to: req.user.email,
-      orderId: order._id,
-      status: "Processing",
-      totalAmount: order.totalAmount,
-      items: order.items.map((item) => ({
-        title: product.title,
-        image: product.image || product.images?.[0] || null,
-        quantity: item.quantity,
-        size: item.size,
-        price: item.priceAtOrder,
-      })),
-      message: `Hi ${req.user.name || "Customer"}, your order #${order._id} has been created. Please complete payment.`,
-    });
+    console.log(order.items[0].productSnapshot.name)
 
-    res.status(201).json({ message: "Order created", order });
+    // ✅ EMAIL QUEUE (FAIL-SAFE)
+    if (userEmail) {
+      await addEmailJob({
+        type: "orderUpdate",
+        to: userEmail,
+        orderId: order._id,
+        status: "Processing",
+        totalAmount: order.totalAmount,
+        items: order.items.map((item) => ({
+          title: item.productSnapshot?.name || "Product",
+          image: item.productSnapshot?.image,
+          quantity: item.quantity,
+          size: item.size || "Free Size",
+          price: item.productSnapshot?.price,
+        })),
+        message: `Hi ${userName}, your order #${order._id} has been created. Please complete payment.`,
+      });
+    }
+
+    return res.status(201).json({ message: "Order created", order });
   } catch (error) {
-    console.error("Create Order Error:", error.message);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Create Order Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
 
 
 /* ------------------------------------------------------

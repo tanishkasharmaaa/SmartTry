@@ -1,6 +1,6 @@
 const cron = require("node-cron");
 const orderModel = require("../model/order");
-const { sendOrderUpdateEmail } = require("../utils/emailService");
+const { sendOrderUpdateEmail } = require("../services/sendSignupEmail");
 
 const ORDER_FLOW = [
   "Processing",

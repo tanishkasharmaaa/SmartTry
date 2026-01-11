@@ -1,8 +1,7 @@
 const Queue = require("bull");
 require("dotenv").config();
 
-const { sendSignupEmail } = require("../services/sendSignupEmail");
-const { sendOrderUpdateEmail } = require("../utils/emailService");
+const { sendSignupEmail,sendOrderUpdateEmail } = require("../services/sendSignupEmail");
 
 const emailQueue = new Queue("emailQueue", process.env.REDIS_URL);
 

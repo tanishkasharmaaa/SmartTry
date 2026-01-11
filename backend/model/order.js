@@ -8,17 +8,45 @@ const orderSchema = new mongoose.Schema({
   },
 
   items: [
-    {
-      productsId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "products",
+  {
+    productsId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "products",
+      required: true,
+    },
+
+    productSnapshot: {
+      name: {
+        type: String,
         required: true,
       },
-      quantity: { type: Number, required: true },
-      priceAtOrder: { type: Number, required: true },
-      size: { type: String },
+      price: {
+        type: Number,
+        required: true,
+      },
+      image: {
+        type: String,
+        default: null,
+      },
     },
-  ],
+
+    quantity: {
+      type: Number,
+      required: true,
+    },
+
+    priceAtOrder: {
+      type: Number,
+      required: true,
+    },
+
+    size: {
+      type: String,
+      default: "Free Size",
+    },
+  },
+],
+
 
   totalAmount: { type: Number, required: true },
   paymentStatus: {
