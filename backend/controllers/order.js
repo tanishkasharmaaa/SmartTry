@@ -95,7 +95,7 @@ const createOrderFromCart = async (req, res) => {
           userId,
           items: orderItems,
           totalAmount,
-          paymentStatus: "Pending",
+          paymentStatus: paymentProvider === "COD" ? "Pending" : "Paid",
           paymentProvider,
           orderStatus: "Processing",
           notifiedStatus: ["Processing"],
@@ -206,7 +206,7 @@ const createOrder = async (req, res) => {
         },
       ],
       totalAmount: product.price * quantity,
-      paymentStatus: "Pending",
+      paymentStatus: paymentProvider === "COD" ? "Pending" : "Paid",
       paymentProvider,
       orderStatus: "Processing",
       notifiedStatus: ["Processing"],
@@ -330,7 +330,7 @@ const getAllOrders = async (req, res) => {
     .populate("items.productsId")
     .sort({ placedAt: -1 });
 
-  res.json({ totalOrders: orders.length, orders });
+  res.json({ totalOrders: orders.length, orders }).s;
 };
 
 /* ------------------------------------------------------
