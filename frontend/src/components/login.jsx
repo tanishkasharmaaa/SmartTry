@@ -232,11 +232,11 @@ const Login = ({ buttonName, close }) => {
                   <MenuItem
                     bg={bg}
                     onClick={() => {
-                      navigate("/orders");
+                      navigate("/orderhistory");
                       close & close();
                     }}
                   >
-                    Orders
+                    Orders history
                   </MenuItem>
 
                   <MenuItem

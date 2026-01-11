@@ -16,6 +16,8 @@ import CheckoutPage from "./pages/Checkout";
 import ChatWidget from "./components/ChatWidget";
 import { useContext } from "react";
 import AuthContext from "./context/authContext";
+import OrderHistory from "./pages/OrderHistory";
+import OrderDetails from "./pages/OrderDetail";
 
 function App() {
   const {authenticated} = useContext(AuthContext);
@@ -42,6 +44,8 @@ function App() {
         <Route path="/settings" element={<PrivateRoute><Settings/></PrivateRoute>}/>
         <Route path="/checkout" element={<PrivateRoute><CheckoutPage/></PrivateRoute>}/>
         <Route path="/order" element={<PrivateRoute><Order/></PrivateRoute>}/>
+        <Route path="/orderhistory" element={<PrivateRoute><OrderHistory/></PrivateRoute>}/>
+        <Route path="/orderDetails/:orderId" element={<PrivateRoute><OrderDetails/></PrivateRoute>}/>
       </Routes>
      {
       authenticated&&<ChatWidget/>

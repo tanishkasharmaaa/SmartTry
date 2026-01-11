@@ -7,73 +7,77 @@ const ORDER_FLOW = [
   "Packed",
   "Shipped",
   "Out for Delivery",
-  "Delivered"
+  "Delivered",
 ];
 
 cron.schedule("*/2 * * * *", async () => {
-  console.log("Checking pending orders for status updates...");
+  console.log("⏱ Checking orders for status updates...");
 
   try {
-    const pendingOrders = await orderModel.find({
-      orderStatus: { $nin: ["Delivered", "Cancelled"] }
-    })
+    const orders = await orderModel
+      .find({
+        orderStatus: { $nin: ["Delivered", "Cancelled"] }, // 🔐 HARD STOP
+      })
       .populate("userId")
-      .populate("items.productsId"); // ⭐ Needed to access product details
+      .lean(false); // allow save()
 
-    for (let order of pendingOrders) {
+    for (const order of orders) {
+      // 🛑 Extra safety
+      if (order.orderStatus === "Cancelled") continue;
+
       const currentIndex = ORDER_FLOW.indexOf(order.orderStatus);
+      if (currentIndex === -1) continue;
 
-      if (currentIndex < ORDER_FLOW.length - 1) {
-        const nextStatus = ORDER_FLOW[currentIndex + 1];
+      if (currentIndex >= ORDER_FLOW.length - 1) continue;
 
-        // 🚫 Prevent duplicate emails
-        if (order.notifiedStatus.includes(nextStatus)) {
-          console.log(`Skipping ${order._id}, already notified for: ${nextStatus}`);
-          continue;
-        }
+      const nextStatus = ORDER_FLOW[currentIndex + 1];
 
-        // Update order
-        order.orderStatus = nextStatus;
-        order.updatedAt = Date.now();
+      // 🚫 Prevent duplicate email & duplicate history
+      if (order.notifiedStatus?.includes(nextStatus)) {
+        console.log(`⏭ Skipping ${order._id}, already notified`);
+        continue;
+      }
 
-        order.notifiedStatus.push(nextStatus);
+      // ✅ Update order
+      order.orderStatus = nextStatus;
+      order.updatedAt = new Date();
 
-        order.trackingHistory.push({
+      order.notifiedStatus.push(nextStatus);
+      order.trackingHistory.push({
+        status: nextStatus,
+        message: `Order moved to ${nextStatus}`,
+        updatedAt: new Date(),
+      });
+
+      await order.save();
+
+      console.log(`✅ Order ${order._id} → ${nextStatus}`);
+
+      // 📧 SEND EMAIL (ONLY FOR NON-CANCELLED)
+      if (order.userId?.email) {
+        const itemsForEmail = order.items.map((item) => ({
+          name: item.productSnapshot.name,
+          image: item.productSnapshot.image,
+          quantity: item.quantity,
+          size: item.size,
+          price: item.productSnapshot.price,
+        }));
+
+        await sendOrderUpdateEmail({
+          to: order.userId.email,
+          orderId: order._id,
           status: nextStatus,
-          message: `Order moved to ${nextStatus}`,
-          updatedAt: new Date()
+          items: itemsForEmail,
+          totalAmount: order.totalAmount,
+          message: `Hi ${
+            order.userId.name || "Customer"
+          }, your order #${order._id} is now ${nextStatus}.`,
         });
 
-        await order.save();
-
-        console.log(`Order ${order._id} updated → ${nextStatus}`);
-
-        // 📧 Send Email with full order details
-        if (order.userId?.email) {
-          const itemsForEmail = order.items.map((item) => ({
-            name: item.productsId.name,
-            image: item.productsId.image.trim() || item.productsId.images?.[0] || null,
-            quantity: item.quantity,
-            size: item.size,
-            price: item.priceAtOrder
-          }));
-
-          const message = `Hi ${order.userId.name || "Customer"}, your order with ID ${order._id} is now **${nextStatus}**.`;
-
-          await sendOrderUpdateEmail({
-            to: order.userId.email,
-            orderId: order._id,
-            status: nextStatus,
-            items: itemsForEmail,
-            totalAmount: order.totalAmount,
-            message
-          });
-
-          console.log(`Email sent → ${order.userId.email}`);
-        }
+        console.log(`📧 Email sent → ${order.userId.email}`);
       }
     }
   } catch (error) {
-    console.error("Error updating orders:", error);
+    console.error("❌ Cron Error:", error.message);
   }
 });

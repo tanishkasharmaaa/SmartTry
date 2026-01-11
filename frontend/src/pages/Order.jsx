@@ -19,7 +19,9 @@ import {
   Input,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState,useEffect,useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import AuthContext from "../context/authContext";
 
 const MotionBox = motion(Box);
 
@@ -41,8 +43,10 @@ const Order = () => {
     card: "CREDIT/DEBIT",
     upi: "UPI",
   };
+  const { authenticated, user } = useContext(AuthContext);
 
   const [status, setStatus] = useState("loading");
+  const navigate = useNavigate()
 
   /* MOCK DATA */
   const address = JSON.parse(localStorage.getItem("deliveryAddress")) || {
@@ -62,7 +66,7 @@ const Order = () => {
     expiry: "",
     cvv: "",
   });
-
+console.log(user)
   const [upiId, setUpiId] = useState("");
   const [errors, setErrors] = useState({});
   const [pin, setPin] = useState("");
@@ -90,14 +94,15 @@ const Order = () => {
     }
 
     if (checkoutType === "CART_ORDER") {
-      const cartId = localStorage.getItem("cartId");
-      const cartItemIds = JSON.parse(
-        localStorage.getItem("selectedCartItemIds")
+      const selectedCartItems = JSON.parse(
+        localStorage.getItem("selectedCartItems")
       );
+      console.log(selectedCartItems);
+      const cartItemIds = selectedCartItems.map((item) => item._id);
 
       url = `${
         import.meta.env.VITE_API_URL
-      }/api/order/buy-through-cart/${cartId}`;
+      }/api/order/buy-through-cart/${user.cartId}`;
       body = { cartItemIds, paymentProvider: paymentProviderMap[paymentMethod] || "UNKNOWN"};
     }
 
@@ -218,6 +223,17 @@ const Order = () => {
     localStorage.removeItem("selectedCartItems");
     localStorage.removeItem("selectedCartItemIds");
   }
+
+  useEffect(() => {
+  if (step === "success") {
+    const timer = setTimeout(() => {
+      navigate("/", { replace: true });
+    }, 2500); // 2.5s delay for UX
+
+    return () => clearTimeout(timer);
+  }
+}, [step, navigate]);
+
 
   return (
     <Box bg={bg} minH="100vh" py={8}>

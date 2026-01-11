@@ -276,50 +276,91 @@ const markOrderAsPaid = async (req, res) => {
 ------------------------------------------------------ */
 const cancelOrder = async (req, res) => {
   try {
-    const { userId } = req.user;
+    const { userId, email, name } = req.user;
     const { orderId } = req.params;
 
     const order = await orderModel.findById(orderId);
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
 
-    if (order.userId.toString() !== userId)
+    if (order.userId.toString() !== userId) {
       return res.status(403).json({ message: "Unauthorized" });
+    }
 
-    if (order.orderStatus === "Delivered")
-      return res.status(400).json({ message: "Cannot cancel delivered order" });
+    if (order.orderStatus === "Delivered") {
+      return res
+        .status(400)
+        .json({ message: "Cannot cancel delivered order" });
+    }
 
+    if (order.orderStatus === "Cancelled") {
+      return res
+        .status(400)
+        .json({ message: "Order already cancelled" });
+    }
+
+    // 🔁 Restore stock
     for (const item of order.items) {
       const stockEntry = await stockModel.findOne({
         productsId: item.productsId,
       });
+
       if (stockEntry) {
-        stockEntry.currentStock[item.size] += item.quantity;
+        const previous = stockEntry.currentStock[item.size] || 0;
+
+        stockEntry.currentStock[item.size] = previous + item.quantity;
+
         stockEntry.updatedStocks.push({
           size: item.size,
-          previousStock: stockEntry.currentStock[item.size] - item.quantity,
+          previousStock: previous,
           newStock: stockEntry.currentStock[item.size],
           changeType: "ADD",
           reason: "Order cancelled",
         });
+
         await stockEntry.save();
       }
     }
 
+    // ❌ Cancel order
     order.orderStatus = "Cancelled";
     order.paymentStatus =
       order.paymentStatus === "Paid" ? "Refunded" : "Pending";
 
     order.trackingHistory.push({
       status: "Cancelled",
-      message: "Order cancelled",
+      message: "Order cancelled by user",
     });
 
     await order.save();
+
+    // 📧 SEND ONLY CANCEL EMAIL
+    if (email) {
+      await addEmailJob({
+        type: "orderCancelled",
+        to: email,
+        orderId: order._id,
+        status: "Cancelled",
+        totalAmount: order.totalAmount,
+        items: order.items.map((item) => ({
+          name: item.productSnapshot.name,
+          image: item.productSnapshot.image,
+          quantity: item.quantity,
+          size: item.size,
+          price: item.productSnapshot.price,
+        })),
+        message: `Hi ${name || "Customer"}, your order #${order._id} has been successfully cancelled.`,
+      });
+    }
+
     res.json({ message: "Order cancelled", order });
   } catch (error) {
+    console.error("Cancel Order Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 /* ------------------------------------------------------
  📦 GET ALL ORDERS
