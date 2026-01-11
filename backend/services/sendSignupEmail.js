@@ -66,104 +66,75 @@ const sendOrderUpdateEmail = async ({
   totalAmount,
   message,
 }) => {
-  console.log(items, "------------ send order update email");
   try {
-    if (
-      !to ||
-      !orderId ||
-      !status ||
-      !Array.isArray(items) ||
-      items.length === 0
-    ) {
+    if (!to || !orderId || !status || !Array.isArray(items) || items.length === 0) {
       throw new Error("Missing or invalid order email fields");
     }
 
     const html = `
-<div style="background:#0b0b0b;padding:40px 10px;font-family:Arial,Helvetica,sans-serif;">
-  <div style="max-width:640px;margin:auto;background:#111;border-radius:16px;overflow:hidden;border:1px solid #222;">
+<div style="font-family: Arial, Helvetica, sans-serif; background:#0b0b0b; padding:30px;">
+  <div style="max-width:650px; margin:auto; background:#111; border-radius:12px; overflow:hidden; border:1px solid #222;">
 
     <!-- HEADER -->
-    <div style="padding:28px;text-align:center;border-bottom:1px solid #222;">
-      <h1 style="margin:0;color:#fff;letter-spacing:2px;">SM△RTTRY</h1>
-      <p style="margin:6px 0 0;color:#aaa;font-size:14px;">
-        Order Confirmation
-      </p>
+    <div style="padding:25px; text-align:center; border-bottom:1px solid #222;">
+      <h1 style="margin:0; color:#fff; letter-spacing:2px;">SM△RTTRY</h1>
+      <p style="margin:5px 0 0; color:#aaa; font-size:14px;">Order Confirmation</p>
     </div>
 
     <!-- STATUS -->
-    <div style="padding:26px;">
-      <h2 style="margin:0 0 10px;color:#fff;font-size:20px;">
+    <div style="padding:25px;">
+      <h2 style="margin:0 0 10px; color:#fff; font-size:20px;">
         Your order is <span style="color:#4CAF50;">${status}</span>
       </h2>
-
-      <p style="color:#bbb;font-size:15px;line-height:1.6;">
-        Order ID:
-        <strong style="color:#fff;">#${orderId}</strong><br/>
-        ${
-          message ||
-          "Thank you for shopping with SmartTry. We’re preparing your order."
-        }
+      <p style="color:#bbb; font-size:15px; line-height:1.6;">
+        Order ID: <strong style="color:#fff;">#${orderId}</strong><br/>
+        ${message || "Thank you for shopping with SmartTry. We’re preparing your order."}
       </p>
     </div>
 
-    <!-- PRODUCTS -->
-    <div style="padding:0 26px 10px;">
+    <!-- PRODUCTS LIST -->
+    <div style="padding:0 25px 10px;">
       ${items
         .map(
           (item) => `
-        <div style="display:flex;gap:16px;padding:16px;background:#181818;border-radius:14px;margin-bottom:14px;">
+        <div style="display:flex; background:#181818; border-radius:12px; padding:15px; margin-bottom:15px; gap:15px; align-items:center; border:1px solid #333;">
           <img 
-            src="${item.image || "https://via.placeholder.com/120"}"
-            width="90"
-            height="110"
-            style="border-radius:12px;object-fit:cover;border:1px solid #333;"
+            src="${(item.image || "https://via.placeholder.com/120").trim()}" 
+            width="90" 
+            height="110" 
+            style="border-radius:10px; object-fit:cover; border:1px solid #333;"
           />
-
           <div style="flex:1;">
-            <h4 style="margin:0 0 6px;color:#fff;font-size:16px;">
-              ${item.name}
-            </h4>
-
-            <p style="margin:0;color:#999;font-size:13px;">
-              Size: <strong style="color:#ddd;">${
-                item.size || "Free Size"
-              }</strong><br/>
-              Qty: <strong style="color:#ddd;">${item.quantity}</strong>
+            <h4 style="margin:0 0 5px; color:#fff; font-size:16px;">${item.title || "Product"}</h4>
+            <p style="margin:0; color:#bbb; font-size:13px;">
+              Size: <strong style="color:#ddd;">${item.size || "Free Size"}</strong><br/>
+              Quantity: <strong style="color:#ddd;">${item.quantity}</strong>
             </p>
-
-            <p style="margin:8px 0 0;color:#fff;font-size:15px;">
-              ₹${item.price}
-            </p>
+            <p style="margin:8px 0 0; color:#fff; font-size:15px;">₹${item.price}</p>
           </div>
         </div>
-      `
-        )
-        .join("")}
+      `).join("")}
     </div>
 
-    <!-- TOTAL -->
-    <div style="padding:22px 26px;border-top:1px solid #222;">
-      <div style="display:flex;justify-content:space-between;color:#ccc;font-size:15px;">
-        <span>Total Amount</span>
-        <strong style="color:#fff;font-size:18px;">
-          ₹ ${totalAmount}
-        </strong>
+    <!-- TOTAL AMOUNT -->
+    <div style="padding:20px 25px; border-top:1px solid #222; border-bottom:1px solid #222;">
+      <div style="display:flex; justify-content:space-between; color:#ccc; font-size:15px;">
+        <span><strong>Total Amount</strong></span>
+        <strong style="color:#fff; font-size:18px;">₹${totalAmount}</strong>
       </div>
     </div>
 
-    <!-- CTA -->
-    <div style="padding:28px;text-align:center;">
-      <a
-        href="${process.env.FRONTEND_URL}/orders/${orderId}"
-        style="display:inline-block;padding:14px 26px;background:#fff;color:#000;text-decoration:none;border-radius:30px;font-weight:bold;font-size:14px;"
-      >
-        View Order
+    <!-- VIEW ORDER BUTTON -->
+    <div style="padding:25px; text-align:center;">
+      <a href="${process.env.FRONTEND_URL}/orders/${orderId}" 
+         style="display:inline-block; padding:14px 28px; background:#4CAF50; color:#fff; text-decoration:none; border-radius:30px; font-weight:bold; font-size:14px;">
+        View Your Order
       </a>
     </div>
 
     <!-- FOOTER -->
-    <div style="padding:18px;text-align:center;border-top:1px solid #222;">
-      <p style="margin:0;color:#777;font-size:12px;">
+    <div style="padding:15px 25px; text-align:center; font-size:12px; color:#777;">
+      <p style="margin:0;">
         Thank you for shopping with SmartTry 🖤<br/>
         This is an automated email. Please do not reply.
       </p>
@@ -186,12 +157,10 @@ const sendOrderUpdateEmail = async ({
 
     return { success: true };
   } catch (error) {
-    console.error(
-      "❌ Order Update Email failed:",
-      error.response?.body || error.message
-    );
+    console.error("❌ Order Update Email failed:", error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 };
+
 
 module.exports = { sendSignupEmail, sendOrderUpdateEmail };
