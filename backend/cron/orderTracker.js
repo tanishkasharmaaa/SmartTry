@@ -18,7 +18,7 @@ cron.schedule("*/2 * * * *", async () => {
       orderStatus: { $nin: ["Delivered", "Cancelled"] }
     })
       .populate("userId")
-      .populate("items.productsId"); // ⭐ Needed to access product image
+      .populate("items.productsId"); // ⭐ Needed to access product details
 
     for (let order of pendingOrders) {
       const currentIndex = ORDER_FLOW.indexOf(order.orderStatus);
@@ -31,10 +31,6 @@ cron.schedule("*/2 * * * *", async () => {
           console.log(`Skipping ${order._id}, already notified for: ${nextStatus}`);
           continue;
         }
-
-        // ⭐ Get product image (first item)
-        const firstItem = order.items[0];
-        const productImage = firstItem?.productsId?.image || firstItem?.productsId?.images?.[0] || null;
 
         // Update order
         order.orderStatus = nextStatus;
@@ -52,17 +48,25 @@ cron.schedule("*/2 * * * *", async () => {
 
         console.log(`Order ${order._id} updated → ${nextStatus}`);
 
-        // 📧 Send Email
+        // 📧 Send Email with full order details
         if (order.userId?.email) {
-          const subject = `Your order #${order._id} is now ${nextStatus}`;
+          const itemsForEmail = order.items.map((item) => ({
+            title: item.productsId.title,
+            image: item.productsId.image || item.productsId.images?.[0] || null,
+            quantity: item.quantity,
+            size: item.size,
+            price: item.priceAtOrder
+          }));
 
-          const message = `
-Hi ${order.userId.name || "Customer"},  
-Your order with ID ${order._id} is now **${nextStatus}**.`
+          const message = `Hi ${order.userId.name || "Customer"}, your order with ID ${order._id} is now **${nextStatus}**.`;
 
-          await sendOrderUpdateEmail(order.userId.email, subject, {
-            message,
-            productImage   // ⭐ Send image here
+          await sendOrderUpdateEmail({
+            to: order.userId.email,
+            orderId: order._id,
+            status: nextStatus,
+            items: itemsForEmail,
+            totalAmount: order.totalAmount,
+            message
           });
 
           console.log(`Email sent → ${order.userId.email}`);
@@ -70,6 +74,6 @@ Your order with ID ${order._id} is now **${nextStatus}**.`
       }
     }
   } catch (error) {
-    console.log("Error updating orders:", error.message);
+    console.error("Error updating orders:", error);
   }
 });

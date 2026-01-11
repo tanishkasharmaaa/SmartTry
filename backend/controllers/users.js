@@ -1,7 +1,7 @@
 const userModel = require("../model/users");
 const cartModel = require("../model/cart");
 const bcrypt = require("bcrypt");
-const {addEmailJob} = require("../queue/emailQueue");
+const { addEmailJob } = require("../queue/emailQueue");
 const jwt = require("jsonwebtoken");
 
 // ============================
@@ -27,7 +27,7 @@ const createUser = async (req, res) => {
     // HASH PASSWORD
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
-    // NORMALIZE interest
+    // NORMALIZE INTEREST
     const normalizedInterest = Array.isArray(body.interest)
       ? [...new Set(body.interest.map((i) => i.toLowerCase().trim()))]
       : [];
@@ -53,7 +53,7 @@ const createUser = async (req, res) => {
             description: body.sellerInfo?.description || "",
           }
         : null,
-      interest: normalizedInterest, // ✅ ADDED interest
+      interest: normalizedInterest, // ✅ Added interest
     });
 
     // ============================
@@ -72,12 +72,14 @@ const createUser = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    // SEND EMAIL ASYNC
+    // ============================
+    // QUEUE SIGNUP EMAIL
+    // ============================
     await addEmailJob({
       type: "signup",
-      to: body.email,
-      subject: "Welcome to SmartTry!",
-      username: body.name,
+      to: user.email,
+      subject: "Welcome to SmartTry! 🎉",
+      username: user.name,
     });
 
     res.status(201).json({
@@ -85,7 +87,7 @@ const createUser = async (req, res) => {
       user: userData,
     });
   } catch (error) {
-    console.log("❌ createUser Error:", error);
+    console.error("❌ createUser Error:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -143,10 +145,12 @@ const updateUser = async (req, res) => {
     }
 
     // =========================
-    // interest UPDATE
+    // INTEREST UPDATE
     // =========================
     if (Array.isArray(body.interest)) {
-      user.interest = [...new Set(body.interest.map((i) => i.toLowerCase().trim()))];
+      user.interest = [
+        ...new Set(body.interest.map((i) => i.toLowerCase().trim())),
+      ];
     }
 
     await user.save();
@@ -176,8 +180,8 @@ const deleteUser = async (req, res) => {
 
     res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ deleteUser Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -193,10 +197,13 @@ const getUserById = async (req, res) => {
     const userData = user.toObject();
     delete userData.password;
 
-    res.status(200).json({ message: "User fetched successfully", user: userData });
+    res.status(200).json({
+      message: "User fetched successfully",
+      user: userData,
+    });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ getUserById Error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 

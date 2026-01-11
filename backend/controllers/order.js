@@ -31,7 +31,7 @@ const createOrderFromCart = async (req, res) => {
 
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    const selectedItems = cart.items.filter(item =>
+    const selectedItems = cart.items.filter((item) =>
       cartItemIds.includes(item._id.toString())
     );
 
@@ -48,7 +48,7 @@ const createOrderFromCart = async (req, res) => {
 
       const availableStock = stockEntry.currentStock[item.size] ?? 0;
       if (availableStock < item.quantity) {
-        throw new Error(`Insufficient stock for ${product.name}`);
+        throw new Error(`Insufficient stock for ${product.title}`);
       }
 
       stockEntry.currentStock[item.size] -= item.quantity;
@@ -71,24 +71,28 @@ const createOrderFromCart = async (req, res) => {
       });
     }
 
+    // Create order
     const [order] = await orderModel.create(
-      [{
-        userId,
-        items: orderItems,
-        totalAmount,
-        paymentStatus: "Pending",
-        paymentProvider: "mock",
-        orderStatus: "Processing",
-        notifiedStatus: ["Processing"],
-        trackingHistory: [
-          { status: "Processing", message: "Order created, payment pending" },
-        ],
-      }],
+      [
+        {
+          userId,
+          items: orderItems,
+          totalAmount,
+          paymentStatus: "Pending",
+          paymentProvider: "mock",
+          orderStatus: "Processing",
+          notifiedStatus: ["Processing"],
+          trackingHistory: [
+            { status: "Processing", message: "Order created, payment pending" },
+          ],
+        },
+      ],
       { session }
     );
 
+    // Remove selected items from cart
     cart.items = cart.items.filter(
-      item => !cartItemIds.includes(item._id.toString())
+      (item) => !cartItemIds.includes(item._id.toString())
     );
 
     cart.totalAmount = cart.items.reduce(
@@ -99,15 +103,33 @@ const createOrderFromCart = async (req, res) => {
     await cart.save({ session });
     await session.commitTransaction();
 
-    await emailQueue.add("orderEmail", {
+    // Add email job to queue
+    const emailQueue = require("../queue/emailQueue"); // make sure path is correct
+    await emailQueue.add({
+      type: "orderUpdate",
       to: req.user.email,
-      subject: "Order Created (Payment Pending)",
-      data: { message: "Your order has been created. Please complete payment." },
+      orderId: order._id,
+      status: "Processing",
+      totalAmount: order.totalAmount,
+      items: order.items.map((item) => {
+        const product = cart.items.find(
+          (ci) => ci.productsId._id.toString() === item.productsId.toString()
+        )?.productsId || item.productsId;
+        return {
+          title: product.title,
+          image: product.image || product.images?.[0] || null,
+          quantity: item.quantity,
+          size: item.size,
+          price: item.priceAtOrder,
+        };
+      }),
+      message: `Hi ${req.user.name || "Customer"}, your order #${order._id} has been created. Please complete payment.`,
     });
 
     res.status(201).json({ message: "Order created", order });
   } catch (error) {
     await session.abortTransaction();
+    console.error("Create Order From Cart Error:", error.message);
     res.status(500).json({ message: error.message });
   } finally {
     session.endSession();
@@ -123,6 +145,7 @@ const createOrder = async (req, res) => {
     const { productsId } = req.params;
     let { quantity, size } = req.body;
 
+    // Normalize size
     size =
       size.trim().toLowerCase() === "free size"
         ? "Free Size"
@@ -138,6 +161,7 @@ const createOrder = async (req, res) => {
     if (availableStock < quantity)
       return res.status(400).json({ message: "Insufficient stock" });
 
+    // Update stock
     stockEntry.currentStock[size] -= quantity;
     stockEntry.updatedStocks.push({
       size,
@@ -148,14 +172,17 @@ const createOrder = async (req, res) => {
     });
     await stockEntry.save();
 
+    // Create order
     const order = await orderModel.create({
       userId,
-      items: [{
-        productsId: product._id,
-        quantity,
-        priceAtOrder: product.price,
-        size,
-      }],
+      items: [
+        {
+          productsId: product._id,
+          quantity,
+          priceAtOrder: product.price,
+          size,
+        },
+      ],
       totalAmount: product.price * quantity,
       paymentStatus: "Pending",
       paymentProvider: "mock",
@@ -166,11 +193,31 @@ const createOrder = async (req, res) => {
       ],
     });
 
+    // Add order email to Redis queue
+    const emailQueue = require("../queue/emailQueue"); // make sure the path is correct
+    await emailQueue.add({
+      type: "orderUpdate",
+      to: req.user.email,
+      orderId: order._id,
+      status: "Processing",
+      totalAmount: order.totalAmount,
+      items: order.items.map((item) => ({
+        title: product.title,
+        image: product.image || product.images?.[0] || null,
+        quantity: item.quantity,
+        size: item.size,
+        price: item.priceAtOrder,
+      })),
+      message: `Hi ${req.user.name || "Customer"}, your order #${order._id} has been created. Please complete payment.`,
+    });
+
     res.status(201).json({ message: "Order created", order });
   } catch (error) {
+    console.error("Create Order Error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 /* ------------------------------------------------------
  💳 MARK ORDER AS PAID (TEST MODE)
@@ -219,7 +266,9 @@ const cancelOrder = async (req, res) => {
       return res.status(400).json({ message: "Cannot cancel delivered order" });
 
     for (const item of order.items) {
-      const stockEntry = await stockModel.findOne({ productsId: item.productsId });
+      const stockEntry = await stockModel.findOne({
+        productsId: item.productsId,
+      });
       if (stockEntry) {
         stockEntry.currentStock[item.size] += item.quantity;
         stockEntry.updatedStocks.push({
@@ -234,7 +283,8 @@ const cancelOrder = async (req, res) => {
     }
 
     order.orderStatus = "Cancelled";
-    order.paymentStatus = order.paymentStatus === "Paid" ? "Refunded" : "Pending";
+    order.paymentStatus =
+      order.paymentStatus === "Paid" ? "Refunded" : "Pending";
 
     order.trackingHistory.push({
       status: "Cancelled",
