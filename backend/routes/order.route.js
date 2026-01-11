@@ -28,7 +28,7 @@ orderRouter.patch("/cancel/:orderId", authMiddleware, cancelOrder);
 // 🧾 Get all user orders
 orderRouter.get("/", authMiddleware, getAllOrders);
 
-orderRouter.get("/order/:orderId", authMiddleware, getSingleOrder);
+orderRouter.get("/:orderId", authMiddleware, getSingleOrder);
 
 
 // 🚚 Track order progress
