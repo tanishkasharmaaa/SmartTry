@@ -13,7 +13,7 @@ const AuthProvider = ({ children }) => {
     const fetchProfile = async () => {
       try {
         const response = await fetch(
-          "${import.meta.env.VITE_API_URL}/auth/profile",
+          `${import.meta.env.VITE_API_URL}/auth/profile`,
           {
             method: "GET",
             credentials: "include",
@@ -45,7 +45,7 @@ const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch("${import.meta.env.VITE_API_URL}/auth/logout", {
+      await fetch(`${import.meta.env.VITE_API_URL}/auth/logout`, {
         method: "GET",
         credentials: "include",
       });

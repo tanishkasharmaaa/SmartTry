@@ -40,6 +40,7 @@ const Home = () => {
           objectPosition="center"
           filter={hover ? "brightness(40%)" : "brightness(100%)"}
           transition="0.4s ease"
+          loading="lazy"
         />
 
         {/* Center text + button container */}
@@ -100,7 +101,7 @@ const Home = () => {
         apiUrl={
           recommendations?.length > 0
             ? null
-            : "${import.meta.env.VITE_API_URL}/api/paginated?limit=10"
+            : `${import.meta.env.VITE_API_URL}/api/paginated?limit=10`
         }
         title=""
         arr={recommendations ?? []}
@@ -125,6 +126,7 @@ const Home = () => {
             objectPosition="center"
             filter={hover ? "brightness(40%)" : "brightness(100%)"}
             transition="0.4s ease"
+            loading="lazy"
           />
           <Box
             position="absolute"
@@ -206,6 +208,7 @@ const Home = () => {
           objectPosition="center"
           filter={hover ? "brightness(40%)" : "brightness(100%)"}
           transition="0.4s ease"
+          loading="lazy"
         />
 
         {/* Center text + button container */}
@@ -286,6 +289,7 @@ const Home = () => {
           objectPosition="center"
           filter={hover ? "brightness(40%)" : "brightness(100%)"}
           transition="0.4s ease"
+          loading="lazy"
         />
 
         {/* Center text + button container */}

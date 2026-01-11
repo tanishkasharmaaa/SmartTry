@@ -191,6 +191,7 @@ const getWithExpiry = (key) => {
                 w="100%"
                 objectFit="cover"
                 borderRadius="md"
+                loading="lazy"
               />
 
               <Text fontWeight="semibold" noOfLines={1}>

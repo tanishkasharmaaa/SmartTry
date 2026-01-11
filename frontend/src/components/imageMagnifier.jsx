@@ -57,6 +57,7 @@ const ImageMagnifier = ({ src, alt }) => {
         w="100%"
         borderRadius="md"
         objectFit="cover"
+        loading="lazy"
         onLoad={() => {
           if (imgRef.current) {
             setImgSize({

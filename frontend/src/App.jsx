@@ -41,6 +41,7 @@ function App() {
         />
         <Route path="/settings" element={<PrivateRoute><Settings/></PrivateRoute>}/>
         <Route path="/checkout" element={<PrivateRoute><CheckoutPage/></PrivateRoute>}/>
+        <Route path="/order" element={<PrivateRoute><Order/></PrivateRoute>}/>
       </Routes>
      {
       authenticated&&<ChatWidget/>

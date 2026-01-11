@@ -21,7 +21,10 @@ const authMiddleware = (req, res, next) => {
     const token = getToken(req);
 
     if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Token missing" });
+      return res.status(401).json({
+        message: "Authentication required",
+        code: "NO_TOKEN",
+      });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
@@ -30,7 +33,18 @@ const authMiddleware = (req, res, next) => {
     next();
   } catch (error) {
     console.error("Auth Middleware Error:", error.message);
-    return res.status(401).json({ message: "Unauthorized: Invalid token" });
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        message: "Session expired. Please login again.",
+        code: "TOKEN_EXPIRED",
+      });
+    }
+
+    return res.status(401).json({
+      message: "Invalid authentication token",
+      code: "INVALID_TOKEN",
+    });
   }
 };
 
@@ -39,25 +53,40 @@ const sellerMiddleware = (req, res, next) => {
     const token = getToken(req);
 
     if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Token missing" });
+      return res.status(401).json({
+        message: "Authentication required",
+        code: "NO_TOKEN",
+      });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
     if (!decoded.seller) {
-      return res
-        .status(403)
-        .json({ message: "Forbidden: Seller access required" });
+      return res.status(403).json({
+        message: "Seller access required",
+        code: "NOT_SELLER",
+      });
     }
 
     req.user = decoded;
     next();
   } catch (error) {
     console.error("Seller Middleware Error:", error.message);
-    return res
-      .status(401)
-      .json({ message: "Unauthorized: Invalid or expired token" });
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        message: "Session expired. Please login again.",
+        code: "TOKEN_EXPIRED",
+      });
+    }
+
+    return res.status(401).json({
+      message: "Invalid authentication token",
+      code: "INVALID_TOKEN",
+    });
   }
 };
-
-module.exports = { authMiddleware, sellerMiddleware };
+module.exports = {
+  authMiddleware,
+  sellerMiddleware,
+};

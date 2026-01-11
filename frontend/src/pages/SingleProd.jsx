@@ -308,7 +308,7 @@ const SingleProd = () => {
   useEffect(() => {
     const checkIfInCart = async () => {
       try {
-        const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
           credentials: "include",
         });
 
@@ -362,18 +362,18 @@ const SingleProd = () => {
 
     // Save the selected product in localStorage
     const selectedItem = {
-      productId: product._id,
+      _id: product._id,
+      product: product,
       title: product.title,
-      price: product.price,
-      image: product.image, // or product.images?.[0]
+      priceAtAdd: product.price,
       size: selectedSize,
       quantity: selectedQty,
     };
 
-    // 🔥 ALWAYS STORE AS ARRAY
-    localStorage.setItem("selectedCartItems", JSON.stringify([selectedItem]));
 
-    // 🔥 MARK CHECKOUT TYPE
+    localStorage.setItem("buyNowProduct", JSON.stringify([selectedItem]));
+
+
     localStorage.setItem("checkoutType", "BUY_NOW");
 
     showToast({

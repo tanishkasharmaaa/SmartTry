@@ -41,7 +41,7 @@ const Login = ({ buttonName, close }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [mode, setMode] = useState("main");
 
-  const GOOGLE_URL = "${import.meta.env.VITE_API_URL}/auth/google";
+  const GOOGLE_URL = `${import.meta.env.VITE_API_URL}/auth/google`;
 
   const [signupData, setSignupData] = useState({
     name: "",
@@ -193,6 +193,7 @@ const Login = ({ buttonName, close }) => {
                 name={user?.name || name}
                 src={user?.image}
                 objectFit="cover"
+                loading="lazy"
               />
             </MenuButton>
 

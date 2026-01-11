@@ -20,6 +20,7 @@ import { FiShoppingCart } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useRecommendations } from "../context/reccomendationContext";
 import ProductCarousel from "../components/productCarousel";
+import { useToast } from "../context/useToast";
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -31,6 +32,7 @@ const Cart = () => {
 
   const { authenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const pageBg = useColorModeValue("gray.50", "black");
   const cardBg = useColorModeValue("white", "gray.900");
@@ -49,11 +51,11 @@ const Cart = () => {
     localStorage.setItem("selectedCartItems", JSON.stringify(selectedItems));
   }, [selectedItems]);
 
-  const toggleSelectItem = (cartItemId) => {
+  const toggleSelectItem = (cartItem) => {
     setSelectedItems((prev) =>
-      prev.includes(cartItemId)
-        ? prev.filter((id) => id !== cartItemId)
-        : [...prev, cartItemId]
+      prev.some((item) => item._id === cartItem._id)
+        ? prev.filter((item) => item._id !== cartItem._id)
+        : [...prev, cartItem]
     );
   };
 
@@ -64,7 +66,7 @@ const Cart = () => {
     const fetchCartItems = async () => {
       try {
         setLoading(true);
-        const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
           credentials: "include",
         });
         const data = await res.json();
@@ -138,7 +140,7 @@ const Cart = () => {
   };
 
   const selectedTotal = cartItems
-    .filter((item) => selectedItems.includes(item._id))
+    .filter((item) => selectedItems.some((i) => i._id === item._id))
     .reduce((sum, item) => sum + item.quantity * item.priceAtAdd, 0);
 
   const getEditableItem = (item) => {
@@ -148,6 +150,18 @@ const Cart = () => {
         quantity: item.quantity,
       }
     );
+  };
+
+  const handleCheckout = () => {
+    localStorage.setItem("checkoutType", "CART_ORDER");
+    showToast({
+      title: "Proceeding to Checkout",
+      description: "You are being redirected to the checkout page.",
+      type: "success",
+    });
+    setTimeout(() => {
+      navigate("/checkout");
+    }, 1000);
   };
 
   if (!authenticated) return <Login buttonName="Login to view cart" />;
@@ -209,8 +223,10 @@ const Cart = () => {
                       <HStack mb={2}>
                         <input
                           type="checkbox"
-                          checked={selectedItems.includes(item._id)}
-                          onChange={() => toggleSelectItem(item._id)}
+                          checked={selectedItems.some(
+                            (i) => i._id === item._id
+                          )}
+                          onChange={() => toggleSelectItem(item)}
                         />
                         <Text fontSize="sm">Select</Text>
                       </HStack>
@@ -219,6 +235,7 @@ const Cart = () => {
                         w={{ base: "100%", sm: "120px" }}
                         h={{ base: "220px", sm: "120px" }}
                         objectFit="contain"
+                        loading="lazy"
                       />
 
                       <Box flex="1">
@@ -371,7 +388,8 @@ const Cart = () => {
               w="100%"
               bg={btnBg}
               color={btnColor}
-              isDisabled={selectedItems.size === 0}
+              isDisabled={selectedItems.length === 0}
+              onClick={handleCheckout}
             >
               Proceed to Buy
             </Button>
@@ -400,6 +418,7 @@ const Cart = () => {
             color={btnColor}
             _hover={{ bg: btnHover }}
             isDisabled={selectedItems.size === 0}
+            onClick={handleCheckout}
           >
             Proceed to Buy
           </Button>
