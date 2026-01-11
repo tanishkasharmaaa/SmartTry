@@ -49,17 +49,32 @@ const sendSignupEmail = async ({ to, subject, username }) => {
 
     console.log(`📧 Signup Email sent to ${to}`);
     return { success: true };
-
   } catch (error) {
-    console.error("❌ Signup Email failed:", error.response?.body || error.message);
+    console.error(
+      "❌ Signup Email failed:",
+      error.response?.body || error.message
+    );
     return { success: false, error: error.message };
   }
 };
 
-const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, message }) => {
-  console.log(items)
+const sendOrderUpdateEmail = async ({
+  to,
+  orderId,
+  status,
+  items,
+  totalAmount,
+  message,
+}) => {
+  console.log(items, "------------ send order update email");
   try {
-    if (!to || !orderId || !status || !Array.isArray(items) || items.length === 0) {
+    if (
+      !to ||
+      !orderId ||
+      !status ||
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
       throw new Error("Missing or invalid order email fields");
     }
 
@@ -84,7 +99,10 @@ const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, m
       <p style="color:#bbb;font-size:15px;line-height:1.6;">
         Order ID:
         <strong style="color:#fff;">#${orderId}</strong><br/>
-        ${message || "Thank you for shopping with SmartTry. We’re preparing your order."}
+        ${
+          message ||
+          "Thank you for shopping with SmartTry. We’re preparing your order."
+        }
       </p>
     </div>
 
@@ -103,11 +121,13 @@ const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, m
 
           <div style="flex:1;">
             <h4 style="margin:0 0 6px;color:#fff;font-size:16px;">
-              ${item.title}
+              ${item.name}
             </h4>
 
             <p style="margin:0;color:#999;font-size:13px;">
-              Size: <strong style="color:#ddd;">${item.size || "Free Size"}</strong><br/>
+              Size: <strong style="color:#ddd;">${
+                item.size || "Free Size"
+              }</strong><br/>
               Qty: <strong style="color:#ddd;">${item.quantity}</strong>
             </p>
 
@@ -126,7 +146,7 @@ const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, m
       <div style="display:flex;justify-content:space-between;color:#ccc;font-size:15px;">
         <span>Total Amount</span>
         <strong style="color:#fff;font-size:18px;">
-          ₹${totalAmount}
+          ₹ ${totalAmount}
         </strong>
       </div>
     </div>
@@ -153,7 +173,6 @@ const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, m
 </div>
 `;
 
-
     const msg = {
       to,
       from: process.env.EMAIL_FROM,
@@ -167,11 +186,12 @@ const sendOrderUpdateEmail = async ({ to, orderId, status, items, totalAmount, m
 
     return { success: true };
   } catch (error) {
-    console.error("❌ Order Update Email failed:", error.response?.body || error.message);
+    console.error(
+      "❌ Order Update Email failed:",
+      error.response?.body || error.message
+    );
     return { success: false, error: error.message };
   }
 };
-
-
 
 module.exports = { sendSignupEmail, sendOrderUpdateEmail };

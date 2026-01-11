@@ -51,8 +51,8 @@ cron.schedule("*/2 * * * *", async () => {
         // 📧 Send Email with full order details
         if (order.userId?.email) {
           const itemsForEmail = order.items.map((item) => ({
-            title: item.productsId.title,
-            image: item.productsId.image || item.productsId.images?.[0] || null,
+            name: item.productsId.name,
+            image: item.productsId.image.trim() || item.productsId.images?.[0] || null,
             quantity: item.quantity,
             size: item.size,
             price: item.priceAtOrder
