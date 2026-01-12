@@ -95,7 +95,7 @@ const Footer = () => {
         borderTop="1px solid"
         borderColor={useColorModeValue("gray.300", "gray.700")}
       >
-        <Text fontSize="sm">© {new Date().getFullYear()} Lorem Inc. All rights reserved.</Text>
+        <Text fontSize="sm">© {new Date().getFullYear()} SmartTry Inc . All rights reserved.</Text>
 
         <HStack spacing={4}>
           <Link href="https://github.com/tanishkasharmaaa/SmartTry">Github</Link>
