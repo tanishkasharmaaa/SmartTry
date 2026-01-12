@@ -213,7 +213,7 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
       }
 
       const orders = await orderModel.find({ shortId }).lean();
-
+     console.log(orders,shortId);
       const data = orders.length
         ? orders.map((order) => ({
             type: "order",
@@ -228,10 +228,11 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
               text: "❌ No order found with this Order ID.",
             },
           ];
+          console.log(orders[0].items)
 
       if (ws?.readyState === 1) {
         ws.send(
-          JSON.stringify({ type: "aiMessage", resultType: "orderStatus", data })
+          JSON.stringify({ type: "aiMessage", resultType: "order", data })
         );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
@@ -244,6 +245,7 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
        CATEGORY LIST (MANUAL)
     ====================================================== */
     if (/category|categories|what do you sell|what products/i.test(q)) {
+      console.log(categories);
       if (ws?.readyState === 1) {
         ws.send(
           JSON.stringify({
@@ -252,6 +254,7 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
             data: categories,
           })
         );
+
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
@@ -263,83 +266,118 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
        GENDER DETECTION
     ====================================================== */
     const genders = [];
-    if (/(men|mens|boys|male|man)/i.test(q)) genders.push("Men");
-    if (/(women|womens|girls|ladies|female|woman)/i.test(q))
+    if (/(men|mens|boys|male|man|males)/i.test(q)) genders.push("Men");
+    if (/(women|womens|girls|ladies|female|woman|females)/i.test(q))
       genders.push("Women");
     if (/unisex|both/i.test(q)) genders.push("Unisex");
+/* ======================================================
+   PRICE DETECTION
+====================================================== */
+let priceFilter = {};
+const underMatch = q.match(/under\s+(\d+)/i);
+if (underMatch) priceFilter.$lte = Number(underMatch[1]);
 
-    /* ======================================================
-       PRICE DETECTION
-    ====================================================== */
-    let priceFilter = {};
-    const underMatch = q.match(/under\s+(\d+)/i);
-    if (underMatch) priceFilter.$lte = Number(underMatch[1]);
+const betweenMatch = q.match(/between\s+(\d+)\s+and\s+(\d+)/i);
+if (betweenMatch) {
+  priceFilter.$gte = Number(betweenMatch[1]);
+  priceFilter.$lte = Number(betweenMatch[2]);
+}
 
-    const betweenMatch = q.match(/between\s+(\d+)\s+and\s+(\d+)/i);
-    if (betweenMatch) {
-      priceFilter.$gte = Number(betweenMatch[1]);
-      priceFilter.$lte = Number(betweenMatch[2]);
-    }
+/* ======================================================
+   OUTFIT / CLOTHING INTENT
+====================================================== */
+const outfitKeywords = [
+  "outfit",
+  "outfits",
+  "clothing",
+  "dress",
+  "top",
+  "kurti",
+  "shirt",
+  "jeans",
+  "fashion",
+];
+const isOutfitQuery = outfitKeywords.some((k) => q.includes(k));
 
-    /* ======================================================
-       OUTFIT / CLOTHING INTENT
-    ====================================================== */
-    const outfitKeywords = [
-      "outfit",
-      "outfits",
-      "clothing",
-      "dress",
-      "top",
-      "kurti",
-      "shirt",
-      "jeans",
-      "fashion",
-    ];
-    const isOutfitQuery = outfitKeywords.some((k) => q.includes(k));
+/* ======================================================
+   1️⃣ OUTFIT QUERY (WITH PRICE / GENDER)
+====================================================== */
+if (isOutfitQuery) {
+  let filter = {};
 
-    if (isOutfitQuery) {
-      let filter = {};
+  if (genders.length) filter.gender = { $in: genders };
+  if (Object.keys(priceFilter).length) filter.price = priceFilter;
 
-      if (genders.length) filter.gender = { $in: genders };
-      if (Object.keys(priceFilter).length) filter.price = priceFilter;
+  filter.$or = [
+    { category: { $regex: /clothing|fashion|outfit/i } },
+    { tags: { $in: outfitKeywords } },
+  ];
 
-      filter.$or = [
-        { category: { $regex: /clothing|fashion|outfit/i } },
-        { tags: { $in: outfitKeywords } },
-      ];
+  const products = await productModel.find(filter).lean();
 
-      const products = await productModel.find(filter).lean();
+  const formatted = products.map((p) => ({
+    name: p.name,
+    price: p.price,
+    category: p.category,
+    gender: p.gender,
+    image: p.image,
+    rating: p.rating,
+    discount: p.discount,
+    id: p._id,
+  }));
 
-      const formatted = products.map((p) => ({
-        name: p.name,
-        price: p.price,
-        category: p.category,
-        gender: p.gender,
-        image: p.image,
-        rating: p.rating,
-        discount: p.discount,
-        tags: p.tags,
-        id: p._id,
-      }));
+  if (ws?.readyState === 1) {
+    ws.send(JSON.stringify({
+      type: "aiMessage",
+      resultType: "products",
+      data: formatted,
+    }));
+    ws.send(JSON.stringify({ type: "aiEnd" }));
+    return;
+  }
 
-      if (ws?.readyState === 1) {
-        ws.send(
-          JSON.stringify({
-            type: "aiMessage",
-            resultType: "products",
-            data: formatted,
-          })
-        );
-        ws.send(JSON.stringify({ type: "aiEnd" }));
-        return;
-      }
+  return res.json({
+    success: true,
+    type: "products",
+    data: formatted,
+  });
+}
 
-      return res.json({
-        success: true,
-        type: "products",
-        data: formatted,
-      });
-    }
+/* ======================================================
+   2️⃣ PRICE-ONLY QUERY (NO OUTFIT)
+====================================================== */
+if (!isOutfitQuery && Object.keys(priceFilter).length) {
+  const products = await productModel
+    .find({ price: priceFilter })
+    .limit(20)
+    .lean();
+
+  const formatted = products.map((p) => ({
+    name: p.name,
+    price: p.price,
+    category: p.category,
+    image: p.image,
+    rating: p.rating,
+    discount: p.discount,
+    id: p._id,
+  }));
+
+  if (ws?.readyState === 1) {
+    ws.send(JSON.stringify({
+      type: "aiMessage",
+      resultType: "products",
+      data: formatted,
+    }));
+    ws.send(JSON.stringify({ type: "aiEnd" }));
+    return;
+  }
+
+  return res.json({
+    success: true,
+    type: "products",
+    data: formatted,
+  });
+}
 
     /* ======================================================
    BROWSE / SHOW PRODUCTS (MEN / WOMEN)
@@ -387,53 +425,33 @@ if (isBrowseIntent && genders.length) {
        MANUAL RECOMMENDATIONS
     ====================================================== */
 
-    const isRecommendIntent =
+const isRecommendIntent =
   /recommend|suggest|best|top|trending|popular|for me|what should i/i.test(q);
 
 if (isRecommendIntent) {
   let manualResults = [];
   let user = null;
 
-  // 1️⃣ HTTP request: user should be in req.user
+  // HTTP request
   if (req.user) {
     user = req.user;
   }
 
-  // 2️⃣ WebSocket request: userId sent in req.userId
+  // WebSocket request
   if (!user && req.userId) {
-    user = await User.findById(req.userId).lean(); // fetch user from DB
+    user = await User.findById(req.userId).lean();
   }
 
   console.log("User for recommendation:", user);
+  console.log("UserId:", req.userId);
 
-  if (user) {
-    // Map cart items: get productId and cartId
-    const cartItems = (user.cart || []).map((i) => ({
-      productId: i.productId,
-      cartId: i._id, // assuming _id is the cart item ID
-    }));
-
-    // Get just product IDs for recommendations
-    const cartProductIds = cartItems.map((i) => i.productId);
-
+  if (req.userId) {
     manualResults = await recommendProducts({
-      userInterests: user.interest || [],
-      cartProductIds,
-      gender: user.gender,
+      userId: req.userId, // ✅ FIXED
       limit: 10,
-    });
-
-    // Attach cartId if the recommended product is in the user's cart
-    manualResults = manualResults.map((p) => {
-      const cartItem = cartItems.find((c) => c.productId.toString() === p.id.toString());
-      return {
-        ...p,
-        cartId: cartItem?._id || null, // attach cartId if exists
-      };
     });
   }
 
-  // 🔒 ALWAYS RETURN FOR RECOMMEND
   const responsePayload = {
     type: "aiMessage",
     resultType: manualResults.length ? "products" : "message",
@@ -442,7 +460,8 @@ if (isRecommendIntent) {
       : [
           {
             type: "message",
-            text: "✨ I need more activity to recommend better products. Try browsing or adding items to cart.",
+            text:
+              "✨ I need more activity to recommend better products. Try browsing or adding items to cart.",
           },
         ],
   };
@@ -455,18 +474,10 @@ if (isRecommendIntent) {
 
   return res.json({
     success: true,
-    type: manualResults.length ? "products" : "message",
-    data: manualResults.length
-      ? manualResults
-      : [
-          {
-            type: "message",
-            text: "✨ I need more activity to recommend better products. Try browsing or adding items to cart.",
-          },
-        ],
+    type: responsePayload.resultType,
+    data: responsePayload.data,
   });
 }
-
 
     /* ======================================================
        KEYWORD SEARCH (MANUAL)
