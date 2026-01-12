@@ -41,7 +41,7 @@ export default function About() {
       <Box maxW="1100px" mx="auto" py={16} px={6}>
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={12} alignItems="center">
           <Image
-            src="public/Smarttry.png"
+            src="Smarttry.png"
             alt="Smart shopping"
             borderRadius="xl"
             objectFit="cover"
