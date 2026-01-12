@@ -342,6 +342,48 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
     }
 
     /* ======================================================
+   BROWSE / SHOW PRODUCTS (MEN / WOMEN)
+====================================================== */
+
+const isBrowseIntent =
+  /(show|list|display|find|see|browse|products|items)/i.test(q);
+
+if (isBrowseIntent && genders.length) {
+  let filter = {
+    gender: { $in: genders },
+  };
+
+  if (Object.keys(priceFilter).length) {
+    filter.price = priceFilter;
+  }
+
+  const products = await productModel
+    .find(filter)
+    .limit(20)
+    .lean();
+
+  if (products.length) {
+    if (ws?.readyState === 1) {
+      ws.send(
+        JSON.stringify({
+          type: "aiMessage",
+          resultType: "products",
+          data: products,
+        })
+      );
+      ws.send(JSON.stringify({ type: "aiEnd" }));
+      return;
+    }
+
+    return res.json({
+      success: true,
+      type: "products",
+      data: products,
+    });
+  }
+}
+
+    /* ======================================================
        MANUAL RECOMMENDATIONS
     ====================================================== */
 
