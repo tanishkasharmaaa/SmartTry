@@ -1,17 +1,21 @@
 // controllers/askAI.js
 const { GoogleGenAI } = require("@google/genai");
 const productModel = require("../model/products");
+const orderModel = require("../model/order");
 const recommendProducts = require("./recommendProducts");
 require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// --------------------------- HELPER FUNCTIONS ---------------------------
+// --------------------------- HELPERS ---------------------------
 
-// Ask Gemini AI with conversation history and available products/categories
-async function askGeminiFlash(query, products = [], categories = [], history = []) {
+async function askGeminiFlash(
+  query,
+  products = [],
+  categories = [],
+  history = []
+) {
   try {
-    // Limit products to top 20 for prompt size
     const productList = products.slice(0, 20);
 
     const contents = [
@@ -43,8 +47,10 @@ ${categories.join(", ")}
 AVAILABLE PRODUCTS (name | category | price | gender | rating | discount | tags | image):
 ${productList
   .map(
-    p =>
-      `${p.name} | ${p.category} | ${p.price} | ${p.gender} | ${p.rating || 0} | ${p.discount || 0} | ${p.tags?.join(", ")}`
+    (p) =>
+      `${p.name} | ${p.category} | ${p.price} | ${p.gender} | ${
+        p.rating || 0
+      } | ${p.discount || 0} | ${p.tags?.join(", ") || ""}`
   )
   .join("\n")}
 
@@ -84,9 +90,12 @@ IMPORTANT:
       contents,
     });
 
-    // Extract text and sanitize
-    let text = response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
-    text = text.replace(/^```json/, "").replace(/```$/, "").trim();
+    let text =
+      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
+    text = text
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim();
 
     try {
       return JSON.parse(text);
@@ -100,26 +109,29 @@ IMPORTANT:
   }
 }
 
+function extractOrderId(query) {
+  console.log(query);
+  const match = query.match(/#([a-f0-9]{8})/i);
+  return match ? match[1] : null; // return only the 8-char ID without #
+}
+
 function extractKeywords(query) {
   return query
     .toLowerCase()
     .replace(/show me|show|i want|give me|find|buy|please|can you/g, "")
     .replace(/[^\w\s]/g, "")
     .split(" ")
-    .filter(word => word.length > 2);
+    .filter((word) => word.length > 2);
 }
 
-
-// Fallback messages if DB has no result
-function aiLikeFallbackMessage(query, resultType) {
+function aiLikeFallbackMessage(query, resultType = "general") {
   const q = query.toLowerCase();
 
   if (resultType === "products") {
     return [
       {
         type: "message",
-        text: `I couldn't find exact products for **"${query}"** 🤔\n\n` +
-          "You can try:\n• Products under 3000\n• Men or Women products\n• Trending products\n• Category like Clothing or Footwear",
+        text: `I couldn't find exact products for **"${query}"** 🤔\n\nYou can try:\n• Products under 3000\n• Men or Women products\n• Trending products\n• Category like Clothing or Footwear`,
       },
     ];
   }
@@ -157,178 +169,248 @@ const askAI = async (req, res, ws = null, conversationHistory = []) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ message: "Query is required" });
 
+    // Ensure conversationHistory is always an array
+    if (!Array.isArray(conversationHistory)) conversationHistory = [];
+
     const q = query.toLowerCase();
     let resultType = "general";
     let resultData = [];
 
-    // Fetch all products and categories for AI reference
+    // Add user query to conversation history
+    conversationHistory.push({ role: "user", parts: [{ text: query }] });
+
+    // ---------------- ORDER TRACKING ----------------
+    const orderId = extractOrderId(q); // e.g., "568d3639"
+    if (
+      /where is my order|track my order|order status|shipment status/i.test(q)
+    ) {
+      if (!orderId) {
+        const reply = [
+          {
+            type: "message",
+            text: "📦 I can help you track your order. Please provide your **Order ID** (example: **#7f3a9c2d**).",
+          },
+        ];
+        if (ws?.readyState === 1) {
+          ws.send(
+            JSON.stringify({
+              type: "aiMessage",
+              resultType: "message",
+              data: reply,
+            })
+          );
+          ws.send(JSON.stringify({ type: "aiEnd" }));
+          return;
+        }
+        return res.json({ success: true, type: "message", data: reply });
+      }
+
+      // ✅ Search by the last 8 chars of _id
+      const order = await orderModel
+        .findOne({ _id: new RegExp(`${orderId}$`, "i") })
+        .lean();
+
+      if (!order) {
+        const reply = [
+          {
+            type: "message",
+            text: "❌ I couldn’t find an order with that Order ID.",
+          },
+        ];
+        if (ws?.readyState === 1) {
+          ws.send(
+            JSON.stringify({
+              type: "aiMessage",
+              resultType: "message",
+              data: reply,
+            })
+          );
+          ws.send(JSON.stringify({ type: "aiEnd" }));
+          return;
+        }
+        return res.json({ success: true, type: "message", data: reply });
+      }
+
+      const reply = [
+        {
+          type: "order",
+          orderId: `#${orderId}`,
+          status: order.status,
+          items: order.items || [],
+        },
+      ];
+      if (ws?.readyState === 1) {
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType: "order",
+            data: reply,
+          })
+        );
+        ws.send(JSON.stringify({ type: "aiEnd" }));
+        return;
+      }
+      return res.json({ success: true, type: "order", data: reply });
+    }
+
+    // fetch products & categories
     const categories = await productModel.distinct("category");
     const allProducts = await productModel.find({}).lean();
 
-    // ---------------- SHORT INPUT ----------------
-    if (q.length <= 2) {
-      const reply = [{ type: "message", text: "Can you please tell me what you're looking for? 😊" }];
+    // ---------------- SHORT / GREETING ----------------
+    if (q.length <= 2 || ["hi", "hello", "hey"].includes(q)) {
+      const reply = aiLikeFallbackMessage(query, "general");
       if (ws?.readyState === 1) {
-        ws.send(JSON.stringify({ type: "aiMessage", resultType: "message", data: reply }));
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType: "message",
+            data: reply,
+          })
+        );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
       return res.json({ success: true, type: "message", data: reply });
     }
 
-    // ---------------- GREETING ----------------
-    const greetings = ["hi", "hello", "hey", "good morning", "good evening"];
-    if (greetings.some(g => q === g || q.startsWith(g))) {
-      const reply = [
-        { type: "message", text: "Hello 👋 I can help you find products.\n• Men products\n• Women products\n• Trending products\n• Categories available" },
-      ];
+    // ---------------- AI-FIRST ----------------
+    const aiRelevantProducts = allProducts.slice(0, 20);
+    const aiResponse = await askGeminiFlash(
+      query,
+      aiRelevantProducts,
+      categories,
+      conversationHistory
+    );
+
+    if (Array.isArray(aiResponse) && aiResponse.length > 0) {
+      resultType = "products";
+      resultData = aiResponse;
+
+      // Add AI response to conversation history
+      conversationHistory.push({
+        role: "assistant",
+        parts: [{ text: JSON.stringify(aiResponse) }],
+      });
+
       if (ws?.readyState === 1) {
-        ws.send(JSON.stringify({ type: "aiMessage", resultType: "message", data: reply }));
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType,
+            data: resultData,
+            ai: true,
+          })
+        );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
-      return res.json({ success: true, type: "message", data: reply });
+      return res.json({
+        success: true,
+        type: resultType,
+        data: resultData,
+        ai: true,
+      });
     }
 
-    // ---------------- INTENT DETECTION ----------------
+    // ---------------- ORDER TRACKING ----------------
+
+    // ---------------- RULE-BASED SEARCH ----------------
     const genders = [];
     if (/(men|mens|boys|male|males|man)/i.test(q)) genders.push("Men");
-    if (/(women|womens|girls|ladies|female|females|woman)/i.test(q)) genders.push("Women");
+    if (/(women|womens|girls|ladies|female|females|woman)/i.test(q))
+      genders.push("Women");
     if (/(unisex|both)/i.test(q)) genders.push("Unisex");
 
     // Category intent
     const categoryIntents = [
-      "category","categories","what category","what categories","which category","which categories",
-      "product category","product categories","categories available","what products do you have",
-      "what all products","what do you sell","product types",
+      "category",
+      "categories",
+      "what category",
+      "what categories",
+      "which category",
+      "which categories",
+      "product category",
+      "product categories",
+      "categories available",
+      "what products do you have",
+      "what all products",
+      "what do you sell",
+      "product types",
     ];
-    if (categoryIntents.some(intent => q.includes(intent))) {
+
+    if (categoryIntents.some((intent) => q.includes(intent))) {
       resultType = "categories";
       resultData = categories;
       if (ws?.readyState === 1) {
-        ws.send(JSON.stringify({ type: "aiMessage", resultType: "categories", data: resultData }));
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType: "categories",
+            data: resultData,
+          })
+        );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
       return res.json({ success: true, type: "categories", data: resultData });
     }
 
-    // Trending / popular products
-    if (/trending|popular|hot|most sold|top selling/.test(q)) {
+    // Filters
+    let filter = {};
+    if (genders.length) filter.gender = { $in: genders };
+    if (/under|below|less than/.test(q)) {
+      const match = q.match(/(\d+)/);
+      if (match) filter.price = { $lte: Number(match[1]) };
+    }
+    if (q.includes("between") && q.includes("and")) {
+      const match = q.match(/between\s+(\d+)\s+and\s+(\d+)/);
+      if (match)
+        filter.price = { $gte: Number(match[1]), $lte: Number(match[2]) };
+    }
+    const matchedCategory = categories.find((c) => q.includes(c.toLowerCase()));
+    if (matchedCategory) filter.category = matchedCategory;
+
+    if (Object.keys(filter).length) {
+      resultType = "products";
+      resultData = await productModel.find(filter).lean();
+    }
+
+    // Personalized recommendations
+    if (/recommend|suggest|for me|you may like|based on my interest/.test(q)) {
+      resultType = "products";
+      const user = req.user || {};
+      const cartItems = user.cart || [];
+      const recommended = await recommendProducts({
+        userInterests: user.interests || [],
+        cartProductIds: cartItems.map((i) => i.productId),
+        gender: user.gender,
+        limit: 10,
+      });
+      if (recommended.length) resultData = recommended;
+    }
+
+    // Generic keyword search
+    const keywords = extractKeywords(q);
+    if (keywords.length) {
+      const regexArray = keywords.map((word) => new RegExp(word, "i"));
       resultType = "products";
       resultData = await productModel
-        .find({ tags: { $in: ["trending", "popular"] } })
-        .sort({ soldCount: -1 })
-        .limit(10)
+        .find({
+          $or: [
+            { name: { $regex: regex, $options: "i" } },
+            { tags: { $in: keywords } },
+          ],
+        })
         .lean();
     }
 
-    // ---------------- PRODUCT FILTERS ----------------
-if (resultType !== "products") {
-  let filter = {};
-  if (genders.length) filter.gender = { $in: genders };
-  if (/under|below|less than/.test(q)) {
-    const match = q.match(/(\d+)/);
-    if (match) filter.price = { $lte: Number(match[1]) };
-  }
-  if (q.includes("between") && q.includes("and")) {
-    const match = q.match(/between\s+(\d+)\s+and\s+(\d+)/);
-    if (match) filter.price = { $gte: Number(match[1]), $lte: Number(match[2]) };
-  }
-  const matchedCategory = categories.find(c => q.includes(c.toLowerCase()));
-  if (matchedCategory) filter.category = matchedCategory;
-
-  if (Object.keys(filter).length) {
-    resultType = "products";
-    resultData = await productModel.find(filter).lean();
-  }
-}
-
-// ---------------- PERSONALIZED RECOMMENDATIONS ----------------
-if (/recommend|suggest|for me|you may like|based on my interest/.test(q)) {
-  resultType = "products";
-
-  const user = req.user || {}; // assuming auth middleware
-  const cartItems = user.cart || [];
-
-  const recommended = await recommendProducts({
-    userInterests: user.interests || [],
-    cartProductIds: cartItems.map(i => i.productId),
-    gender: user.gender,
-    limit: 10,
-  });
-
-  if (recommended.length) {
-    resultData = recommended;
-  }
-}
-
-// ---------------- GENERIC PRODUCT KEYWORD SEARCH ----------------
-const keywords = extractKeywords(q);
-
-if (keywords.length) {
-  const regexArray = keywords.map(word => new RegExp(word, "i"));
-
-  resultType = "products";
-  resultData = await productModel.find({
-    $or: [
-      { name: { $in: regexArray } },
-      { tags: { $in: keywords } }
-    ]
-  }).lean();
-
-  if (resultData.length > 0) {
-    if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({
-        type: "aiMessage",
-        resultType,
-        data: resultData
-      }));
-      ws.send(JSON.stringify({ type: "aiEnd" }));
-      return;
-    }
-
-    return res.json({
-      success: true,
-      type: resultType,
-      data: resultData
-    });
-  }
-}
-
-
-// ---------------- FALLBACK TO AI ----------------
-if (!resultData || resultData.length === 0) {
-  // Prepare relevant products for AI (optional: filter top 20 to avoid prompt size issues)
-  const aiRelevantProducts = allProducts.slice(0, 20);
-
-  const aiResponse = await askGeminiFlash(query, aiRelevantProducts, categories, conversationHistory);
-  console.log("Gemini Flash AI Response:", aiResponse);
-
-  let reply;
-  
-  // If AI returned valid products (array), use it
-  if (Array.isArray(aiResponse) && aiResponse.length > 0) {
-    resultType = "products";
-    resultData = aiResponse;
-  } else {
-    // AI returned empty or invalid data, fallback to friendly message
-    reply = aiLikeFallbackMessage(query, "general");
-    if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: "aiMessage", resultType: "message", data: reply, ai: true }));
-      ws.send(JSON.stringify({ type: "aiEnd" }));
-      return;
-    }
-    return res.json({ success: true, type: "message", data: reply, ai: true });
-  }
-}
-
     // ---------------- RESPONSE ----------------
     if (resultType === "products") {
-      resultData = resultData.map(p => ({
+      resultData = resultData.map((p) => ({
         name: p.name,
         price: p.price,
-        description: p.description,
+        description: p.description || "No description available",
         category: p.category,
         gender: p.gender,
         image: p.image,
@@ -339,7 +421,9 @@ if (!resultData || resultData.length === 0) {
     }
 
     if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: "aiMessage", resultType, data: resultData }));
+      ws.send(
+        JSON.stringify({ type: "aiMessage", resultType, data: resultData })
+      );
       ws.send(JSON.stringify({ type: "aiEnd" }));
       return;
     }

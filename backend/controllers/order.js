@@ -102,6 +102,7 @@ const createOrderFromCart = async (req, res) => {
           trackingHistory: [
             { status: "Processing", message: "Order created, payment pending" },
           ],
+           shortId: new mongoose.Types.ObjectId().toString().slice(-8), // 8-char shortId
         },
       ],
       { session }
@@ -213,6 +214,7 @@ const createOrder = async (req, res) => {
       trackingHistory: [
         { status: "Processing", message: "Order placed, payment pending" },
       ],
+       shortId: new mongoose.Types.ObjectId().toString().slice(-8), // 8-char shortId
     });
 
     if (userEmail) {
