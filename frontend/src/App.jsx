@@ -18,11 +18,19 @@ import { useContext } from "react";
 import AuthContext from "./context/authContext";
 import OrderHistory from "./pages/OrderHistory";
 import OrderDetails from "./pages/OrderDetail";
+import SEO from "./components/SEO";
 
 function App() {
   const {authenticated} = useContext(AuthContext);
   return (
     <>
+    <SEO
+        title="SmartTry – Try Products Virtually Before You Buy"
+        description="SmartTry helps users try products virtually using AI before purchasing."
+        keywords="smarttry, virtual try on, ecommerce ai"
+        url="https://smarttry.ai/"
+        image="https://smarttry.ai/og-image.png"
+      />
       <Navbar />
      
       <Routes>

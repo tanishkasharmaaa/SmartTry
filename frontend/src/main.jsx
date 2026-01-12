@@ -10,8 +10,10 @@ import ThemeProvider from './context/themeProvider.jsx'
 import { ToastProvider } from './context/toastProvider.jsx'
 import CartContext, { CartProvider } from './context/cartContext.jsx'
 import { RecommendationProvider } from './context/reccomendationContext.jsx'
+import {HelmetProvider} from "react-helmet-async"
 
 createRoot(document.getElementById('root')).render(
+  <HelmetProvider>
   <ChakraProvider theme={theme}>
     <ThemeProvider>
      <ToastProvider>
@@ -26,5 +28,6 @@ createRoot(document.getElementById('root')).render(
   </BrowserRouter>
   </ToastProvider> 
   </ThemeProvider>
-  </ChakraProvider>,
+  </ChakraProvider>
+  </HelmetProvider>,
 )
