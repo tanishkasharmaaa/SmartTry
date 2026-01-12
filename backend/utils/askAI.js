@@ -3,12 +3,14 @@ const { GoogleGenAI } = require("@google/genai");
 const productModel = require("../model/products");
 const orderModel = require("../model/order");
 const recommendProducts = require("./recommendProducts");
+const User = require("../model/users")
 require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// --------------------------- HELPERS ---------------------------
-
+/* ======================================================
+   AI HELPER
+====================================================== */
 async function askGeminiFlash(
   query,
   products = [],
@@ -109,333 +111,437 @@ IMPORTANT:
   }
 }
 
-function extractOrderId(query) {
-  console.log(query);
-  const match = query.match(/#([a-f0-9]{8})/i);
-  return match ? match[1] : null; // return only the 8-char ID without #
-}
-
-function extractKeywords(query) {
-  return query
-    .toLowerCase()
-    .replace(/show me|show|i want|give me|find|buy|please|can you/g, "")
-    .replace(/[^\w\s]/g, "")
-    .split(" ")
-    .filter((word) => word.length > 2);
-}
-
-function aiLikeFallbackMessage(query, resultType = "general") {
-  const q = query.toLowerCase();
-
-  if (resultType === "products") {
-    return [
-      {
-        type: "message",
-        text: `I couldn't find exact products for **"${query}"** 🤔\n\nYou can try:\n• Products under 3000\n• Men or Women products\n• Trending products\n• Category like Clothing or Footwear`,
-      },
-    ];
-  }
-
-  if (resultType === "categories") {
-    return [
-      {
-        type: "message",
-        text: "Here are the categories we currently have 👇\n\n• Men\n• Women\n• Unisex\n• Accessories\n• Footwear",
-      },
-    ];
-  }
-
-  if (/hello|hi|hey/.test(q)) {
-    return [
-      {
-        type: "message",
-        text: "Hey there 👋 I’m SmartTry AI.\n\nI can help you find:\n• Men / Women products\n• Trending items\n• Products by price\n• Categories available",
-      },
-    ];
-  }
-
-  return [
-    {
-      type: "message",
-      text: `I didn’t fully understand **"${query}"** 🤔\n\nTry asking like:\n• Show products under 5000\n• Best shoes for men\n• Trending products\n• What categories do you have?\n\nI’m here to help 😊`,
-    },
-  ];
-}
-
-// --------------------------- MAIN API ---------------------------
-
+/* ======================================================
+   MAIN CONTROLLER
+====================================================== */
 const askAI = async (req, res, ws = null, conversationHistory = []) => {
   try {
     const { query } = req.body;
-    if (!query) return res.status(400).json({ message: "Query is required" });
-
-    // Ensure conversationHistory is always an array
-    if (!Array.isArray(conversationHistory)) conversationHistory = [];
+    if (!query) {
+      if (ws?.readyState === 1) {
+        ws.send(
+          JSON.stringify({
+            type: "aiError",
+            message: "Query required",
+          })
+        );
+        return;
+      }
+      return res.status(400).json({ message: "Query required" });
+    }
 
     const q = query.toLowerCase();
-    let resultType = "general";
-    let resultData = [];
 
-    // Add user query to conversation history
-    conversationHistory.push({ role: "user", parts: [{ text: query }] });
+    /* ---------------- FETCH DATA ---------------- */
+    const categories = await productModel.distinct("category");
+    const allProducts = await productModel.find({}).limit(20).lean();
 
-    // ---------------- ORDER TRACKING ----------------
-    const orderId = extractOrderId(q); // e.g., "568d3639"
-    if (
-      /where is my order|track my order|order status|shipment status/i.test(q)
-    ) {
-      if (!orderId) {
-        const reply = [
-          {
-            type: "message",
-            text: "📦 I can help you track your order. Please provide your **Order ID** (example: **#7f3a9c2d**).",
-          },
-        ];
-        if (ws?.readyState === 1) {
-          ws.send(
-            JSON.stringify({
-              type: "aiMessage",
-              resultType: "message",
-              data: reply,
-            })
-          );
-          ws.send(JSON.stringify({ type: "aiEnd" }));
-          return;
-        }
-        return res.json({ success: true, type: "message", data: reply });
-      }
-
-      // ✅ Search by the last 8 chars of _id
-      const order = await orderModel
-        .findOne({ _id: new RegExp(`${orderId}$`, "i") })
-        .lean();
-
-      if (!order) {
-        const reply = [
-          {
-            type: "message",
-            text: "❌ I couldn’t find an order with that Order ID.",
-          },
-        ];
-        if (ws?.readyState === 1) {
-          ws.send(
-            JSON.stringify({
-              type: "aiMessage",
-              resultType: "message",
-              data: reply,
-            })
-          );
-          ws.send(JSON.stringify({ type: "aiEnd" }));
-          return;
-        }
-        return res.json({ success: true, type: "message", data: reply });
-      }
-
-      const reply = [
+    /* ======================================================
+       SMARTTRY INTRO (MANUAL)
+    ====================================================== */
+    if (/what is smarttry|about smarttry|who are you|what do you do/i.test(q)) {
+      const data = [
         {
-          type: "order",
-          orderId: `#${orderId}`,
-          status: order.status,
-          items: order.items || [],
+          type: "message",
+          text: "🤖 I’m SmartTry AI — your personal shopping assistant. I help you find products by category, price, gender, trends, and your preferences.",
+        },
+      ];
+
+      if (ws?.readyState === 1) {
+        ws.send(
+          JSON.stringify({ type: "aiMessage", resultType: "message", data })
+        );
+        ws.send(JSON.stringify({ type: "aiEnd" }));
+        return;
+      }
+
+      return res.json({ success: true, type: "message", data });
+    }
+
+    /* ======================================================
+       GREEETING (MANUAL)
+    ====================================================== */
+
+    if (
+      /hello|hi|hey|greetings|good morning|good afternoon|good evening/i.test(q)
+    ) {
+      const data = [
+        {
+          type: "message",
+          text: "👋 Hello! How can I assist you with your shopping today?",
         },
       ];
       if (ws?.readyState === 1) {
         ws.send(
-          JSON.stringify({
-            type: "aiMessage",
-            resultType: "order",
-            data: reply,
-          })
+          JSON.stringify({ type: "aiMessage", resultType: "message", data })
         );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
-      return res.json({ success: true, type: "order", data: reply });
+      return res.json({ success: true, type: "message", data });
     }
 
-    // fetch products & categories
-    const categories = await productModel.distinct("category");
-    const allProducts = await productModel.find({}).lean();
+    /* ======================================================
+       SMARTTRY INTRO (MANUAL)
+    ====================================================== */
 
-    // ---------------- SHORT / GREETING ----------------
-    if (q.length <= 2 || ["hi", "hello", "hey"].includes(q)) {
-      const reply = aiLikeFallbackMessage(query, "general");
+    if (
+      /track my order status|where is my order|order status|track order/i.test(
+        q
+      )
+    ) {
+      const idMatch = query.match(/#?([a-f0-9]{8})/i);
+      const shortId = idMatch ? idMatch[1] : null;
+
+      if (!shortId) {
+        const data = [
+          {
+            type: "message",
+            text: "📦 Please provide your Order ID (example: #7f3a9c2d).",
+          },
+        ];
+
+        if (ws?.readyState === 1) {
+          ws.send(
+            JSON.stringify({ type: "aiMessage", resultType: "message", data })
+          );
+          ws.send(JSON.stringify({ type: "aiEnd" }));
+          return;
+        }
+
+        return res.json({ success: true, type: "message", data });
+      }
+
+      const orders = await orderModel.find({ shortId }).lean();
+
+      const data = orders.length
+        ? orders.map((order) => ({
+            type: "order",
+            orderId: `#${order.shortId}`,
+            status: order.orderStatus,
+            items: order.items,
+            totalAmount: order.totalAmount,
+          }))
+        : [
+            {
+              type: "message",
+              text: "❌ No order found with this Order ID.",
+            },
+          ];
+
       if (ws?.readyState === 1) {
         ws.send(
-          JSON.stringify({
-            type: "aiMessage",
-            resultType: "message",
-            data: reply,
-          })
+          JSON.stringify({ type: "aiMessage", resultType: "orderStatus", data })
         );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
-      return res.json({ success: true, type: "message", data: reply });
+
+      return res.json({ success: true, type: "orderStatus", data });
     }
 
-    // ---------------- AI-FIRST ----------------
-    const aiRelevantProducts = allProducts.slice(0, 20);
-    const aiResponse = await askGeminiFlash(
-      query,
-      aiRelevantProducts,
-      categories,
-      conversationHistory
-    );
-
-    if (Array.isArray(aiResponse) && aiResponse.length > 0) {
-      resultType = "products";
-      resultData = aiResponse;
-
-      // Add AI response to conversation history
-      conversationHistory.push({
-        role: "assistant",
-        parts: [{ text: JSON.stringify(aiResponse) }],
-      });
-
-      if (ws?.readyState === 1) {
-        ws.send(
-          JSON.stringify({
-            type: "aiMessage",
-            resultType,
-            data: resultData,
-            ai: true,
-          })
-        );
-        ws.send(JSON.stringify({ type: "aiEnd" }));
-        return;
-      }
-      return res.json({
-        success: true,
-        type: resultType,
-        data: resultData,
-        ai: true,
-      });
-    }
-
-    // ---------------- ORDER TRACKING ----------------
-
-    // ---------------- RULE-BASED SEARCH ----------------
-    const genders = [];
-    if (/(men|mens|boys|male|males|man)/i.test(q)) genders.push("Men");
-    if (/(women|womens|girls|ladies|female|females|woman)/i.test(q))
-      genders.push("Women");
-    if (/(unisex|both)/i.test(q)) genders.push("Unisex");
-
-    // Category intent
-    const categoryIntents = [
-      "category",
-      "categories",
-      "what category",
-      "what categories",
-      "which category",
-      "which categories",
-      "product category",
-      "product categories",
-      "categories available",
-      "what products do you have",
-      "what all products",
-      "what do you sell",
-      "product types",
-    ];
-
-    if (categoryIntents.some((intent) => q.includes(intent))) {
-      resultType = "categories";
-      resultData = categories;
+    /* ======================================================
+       CATEGORY LIST (MANUAL)
+    ====================================================== */
+    if (/category|categories|what do you sell|what products/i.test(q)) {
       if (ws?.readyState === 1) {
         ws.send(
           JSON.stringify({
             type: "aiMessage",
             resultType: "categories",
-            data: resultData,
+            data: categories,
           })
         );
         ws.send(JSON.stringify({ type: "aiEnd" }));
         return;
       }
-      return res.json({ success: true, type: "categories", data: resultData });
+
+      return res.json({ success: true, type: "categories", data: categories });
     }
 
-    // Filters
-    let filter = {};
-    if (genders.length) filter.gender = { $in: genders };
-    if (/under|below|less than/.test(q)) {
-      const match = q.match(/(\d+)/);
-      if (match) filter.price = { $lte: Number(match[1]) };
-    }
-    if (q.includes("between") && q.includes("and")) {
-      const match = q.match(/between\s+(\d+)\s+and\s+(\d+)/);
-      if (match)
-        filter.price = { $gte: Number(match[1]), $lte: Number(match[2]) };
-    }
-    const matchedCategory = categories.find((c) => q.includes(c.toLowerCase()));
-    if (matchedCategory) filter.category = matchedCategory;
+    /* ======================================================
+       GENDER DETECTION
+    ====================================================== */
+    const genders = [];
+    if (/(men|mens|boys|male|man)/i.test(q)) genders.push("Men");
+    if (/(women|womens|girls|ladies|female|woman)/i.test(q))
+      genders.push("Women");
+    if (/unisex|both/i.test(q)) genders.push("Unisex");
 
-    if (Object.keys(filter).length) {
-      resultType = "products";
-      resultData = await productModel.find(filter).lean();
-    }
+    /* ======================================================
+       PRICE DETECTION
+    ====================================================== */
+    let priceFilter = {};
+    const underMatch = q.match(/under\s+(\d+)/i);
+    if (underMatch) priceFilter.$lte = Number(underMatch[1]);
 
-    // Personalized recommendations
-    if (/recommend|suggest|for me|you may like|based on my interest/.test(q)) {
-      resultType = "products";
-      const user = req.user || {};
-      const cartItems = user.cart || [];
-      const recommended = await recommendProducts({
-        userInterests: user.interests || [],
-        cartProductIds: cartItems.map((i) => i.productId),
-        gender: user.gender,
-        limit: 10,
-      });
-      if (recommended.length) resultData = recommended;
+    const betweenMatch = q.match(/between\s+(\d+)\s+and\s+(\d+)/i);
+    if (betweenMatch) {
+      priceFilter.$gte = Number(betweenMatch[1]);
+      priceFilter.$lte = Number(betweenMatch[2]);
     }
 
-    // Generic keyword search
-    const keywords = extractKeywords(q);
-    if (keywords.length) {
-      const regexArray = keywords.map((word) => new RegExp(word, "i"));
-      resultType = "products";
-      resultData = await productModel
-        .find({
-          $or: [
-            { name: { $regex: regex, $options: "i" } },
-            { tags: { $in: keywords } },
-          ],
-        })
-        .lean();
-    }
+    /* ======================================================
+       OUTFIT / CLOTHING INTENT
+    ====================================================== */
+    const outfitKeywords = [
+      "outfit",
+      "outfits",
+      "clothing",
+      "dress",
+      "top",
+      "kurti",
+      "shirt",
+      "jeans",
+      "fashion",
+    ];
+    const isOutfitQuery = outfitKeywords.some((k) => q.includes(k));
 
-    // ---------------- RESPONSE ----------------
-    if (resultType === "products") {
-      resultData = resultData.map((p) => ({
+    if (isOutfitQuery) {
+      let filter = {};
+
+      if (genders.length) filter.gender = { $in: genders };
+      if (Object.keys(priceFilter).length) filter.price = priceFilter;
+
+      filter.$or = [
+        { category: { $regex: /clothing|fashion|outfit/i } },
+        { tags: { $in: outfitKeywords } },
+      ];
+
+      const products = await productModel.find(filter).lean();
+
+      const formatted = products.map((p) => ({
         name: p.name,
         price: p.price,
-        description: p.description || "No description available",
         category: p.category,
         gender: p.gender,
         image: p.image,
         rating: p.rating,
         discount: p.discount,
         tags: p.tags,
+        id: p._id,
       }));
+
+      if (ws?.readyState === 1) {
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType: "products",
+            data: formatted,
+          })
+        );
+        ws.send(JSON.stringify({ type: "aiEnd" }));
+        return;
+      }
+
+      return res.json({
+        success: true,
+        type: "products",
+        data: formatted,
+      });
     }
+
+    /* ======================================================
+       MANUAL RECOMMENDATIONS
+    ====================================================== */
+
+    const isRecommendIntent =
+  /recommend|suggest|best|top|trending|popular|for me|what should i/i.test(q);
+
+if (isRecommendIntent) {
+  let manualResults = [];
+  let user = null;
+
+  // 1️⃣ HTTP request: user should be in req.user
+  if (req.user) {
+    user = req.user;
+  }
+
+  // 2️⃣ WebSocket request: userId sent in req.userId
+  if (!user && req.userId) {
+    user = await User.findById(req.userId).lean(); // fetch user from DB
+  }
+
+  console.log("User for recommendation:", user);
+
+  if (user) {
+    // Map cart items: get productId and cartId
+    const cartItems = (user.cart || []).map((i) => ({
+      productId: i.productId,
+      cartId: i._id, // assuming _id is the cart item ID
+    }));
+
+    // Get just product IDs for recommendations
+    const cartProductIds = cartItems.map((i) => i.productId);
+
+    manualResults = await recommendProducts({
+      userInterests: user.interest || [],
+      cartProductIds,
+      gender: user.gender,
+      limit: 10,
+    });
+
+    // Attach cartId if the recommended product is in the user's cart
+    manualResults = manualResults.map((p) => {
+      const cartItem = cartItems.find((c) => c.productId.toString() === p.id.toString());
+      return {
+        ...p,
+        cartId: cartItem?._id || null, // attach cartId if exists
+      };
+    });
+  }
+
+  // 🔒 ALWAYS RETURN FOR RECOMMEND
+  const responsePayload = {
+    type: "aiMessage",
+    resultType: manualResults.length ? "products" : "message",
+    data: manualResults.length
+      ? manualResults
+      : [
+          {
+            type: "message",
+            text: "✨ I need more activity to recommend better products. Try browsing or adding items to cart.",
+          },
+        ],
+  };
+
+  if (ws?.readyState === 1) {
+    ws.send(JSON.stringify(responsePayload));
+    ws.send(JSON.stringify({ type: "aiEnd" }));
+    return;
+  }
+
+  return res.json({
+    success: true,
+    type: manualResults.length ? "products" : "message",
+    data: manualResults.length
+      ? manualResults
+      : [
+          {
+            type: "message",
+            text: "✨ I need more activity to recommend better products. Try browsing or adding items to cart.",
+          },
+        ],
+  });
+}
+
+
+    /* ======================================================
+       KEYWORD SEARCH (MANUAL)
+    ====================================================== */
+    const keywords = q.split(" ").filter((w) => w.length > 2);
+    if (keywords.length) {
+      let filter = {
+        $or: [
+          { name: { $regex: keywords.join("|"), $options: "i" } },
+          { tags: { $regex: outfitKeywords.join("|"), $options: "i" } },
+        ],
+      };
+
+      if (genders.length) filter.gender = { $in: genders };
+      if (Object.keys(priceFilter).length) filter.price = priceFilter;
+
+      const products = await productModel.find(filter).lean();
+
+      if (products.length) {
+        if (ws?.readyState === 1) {
+          ws.send(
+            JSON.stringify({
+              type: "aiMessage",
+              resultType: "products",
+              data: products,
+            })
+          );
+          ws.send(JSON.stringify({ type: "aiEnd" }));
+          return;
+        }
+
+        return res.json({
+          success: true,
+          type: "products",
+          data: manualResults,
+        });
+      }
+    }
+
+    /* ======================================================
+       AI FALLBACK (LAST)
+    ====================================================== */
+    const aiResponse = await askGeminiFlash(
+      query,
+      allProducts.slice(0, 20),
+      categories,
+      conversationHistory
+    );
+
+    if (Array.isArray(aiResponse) && aiResponse.length) {
+      if (ws?.readyState === 1) {
+        ws.send(
+          JSON.stringify({
+            type: "aiMessage",
+            resultType: "products",
+            data: manualResults,
+          })
+        );
+        ws.send(JSON.stringify({ type: "aiEnd" }));
+        return;
+      }
+
+      return res.json({
+        success: true,
+        type: "products",
+        data: aiResponse,
+      });
+    }
+
+    /* ======================================================
+       FINAL FALLBACK
+    ====================================================== */
 
     if (ws?.readyState === 1) {
       ws.send(
-        JSON.stringify({ type: "aiMessage", resultType, data: resultData })
+        JSON.stringify({
+          type: "aiMessage",
+          resultType: "message",
+          data: [
+            {
+              type: "message",
+              text: "🤔 I couldn’t find matching products. Try:\n• Girls outfits under 3000\n• Best shoes for men\n• Trending products",
+            },
+          ],
+        })
       );
       ws.send(JSON.stringify({ type: "aiEnd" }));
       return;
     }
 
-    res.json({ success: true, type: resultType, data: resultData });
-  } catch (error) {
-    console.error("ASK AI ERROR:", error);
+    return res.json({
+      success: true,
+      type: "message",
+      data: [
+        {
+          type: "message",
+          text: "🤔 I couldn’t find matching products. Try:\n• Girls outfits under 3000\n• Best shoes for men\n• Trending products",
+        },
+      ],
+    });
+  } catch (err) {
+    console.error("ASK AI ERROR:", err);
+
     if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: "aiError", message: error.message }));
+      ws.send(
+        JSON.stringify({
+          type: "aiError",
+          message: err.message,
+        })
+      );
       return;
     }
-    res.status(500).json({ success: false, message: error.message });
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 

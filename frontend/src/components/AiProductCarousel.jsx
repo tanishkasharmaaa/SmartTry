@@ -7,7 +7,7 @@ export default function ProductCarousel({ products }) {
   const subText = useColorModeValue("gray.600", "gray.400");
 
   const navigate = useNavigate();
-
+console.log(products)
   return (
     // ⬇️ FIXED HEIGHT WRAPPER (IMPORTANT)
     <Box h="220px" position="relative" my="2">

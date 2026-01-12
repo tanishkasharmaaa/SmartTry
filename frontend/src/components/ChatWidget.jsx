@@ -13,6 +13,7 @@ import AuthContext from "../context/authContext";
 import ChatToggleButton from "./ChatToggleButton";
 import Login from "./login";
 import AiProductCarousel from "./AiProductCarousel";
+import OrderItemsCarousel from "./OrderItemsCarousel";
 
 export default function ChatWidget() {
   const { authenticated } = useContext(AuthContext);
@@ -29,7 +30,6 @@ export default function ChatWidget() {
   const toggleRef = useRef(null);
   const scrollRef = useRef(null);
 
-
   // Theme colors
   const bgColor = useColorModeValue("white", "gray.900");
   const headerBg = useColorModeValue("gray.100", "gray.800");
@@ -40,98 +40,116 @@ export default function ChatWidget() {
   const aiBubble = useColorModeValue("gray.100", "gray.800");
   const buttonBg = useColorModeValue("black", "white");
   const buttonColor = useColorModeValue("white", "black");
+  const orderCardBg = useColorModeValue("gray.50", "gray.700");
 
   // -------------------- WebSocket Setup --------------------
-console.log(import.meta.env.VITE_WS_URL);
-  useEffect(() => {
-    if (!authenticated) return;
+  
+ useEffect(() => {
+  if (!authenticated) return;
 
-    if (!wsRef.current) {
-      wsRef.current = new WebSocket(
-        import.meta.env.VITE_WS_URL 
-      );
+  if (!wsRef.current) {
+    let wsUrl = import.meta.env.VITE_WS_URL + "/ws";
 
-      wsRef.current.onopen = () => {
-        setConnected(true);
-        console.log("✅ WebSocket connected");
-      };
+    // If local dev, optionally pass a dev token
+    if (import.meta.env.DEV) {
+      const devToken = import.meta.env.VITE_DEV_TOKEN; // store a test token in .env.local
+      if (devToken) wsUrl += `?token=${devToken}`;
+    }
 
-      wsRef.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+    wsRef.current = new WebSocket(wsUrl);
 
-        switch (data.type) {
-          case "connected":
-            console.log("WebSocket sessionId:", data.sessionId);
-            setSessionId(data.sessionId);
-            setConnected(true); // set green light
-            break;
+    wsRef.current.onopen = () => {
+      setConnected(true);
+      console.log("✅ WebSocket connected");
+    };
 
-          case "aiMessage": {
-            console.log("🤖 AI Message:", data);
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
 
-            // PRODUCTS RESPONSE
-            if (data.resultType === "products" && Array.isArray(data.data)) {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "ai",
-                  kind: "products",
-                  content: data.data, // 👈 array of product objects
-                },
-              ]);
-              return;
-            }
+      switch (data.type) {
+        case "connected":
+          console.log("WebSocket sessionId:", data.sessionId);
+          setSessionId(data.sessionId);
+          setConnected(true);
+          break;
 
-            // TEXT / MESSAGE RESPONSE
-            if (data.resultType === "message") {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  role: "ai",
-                  kind: "text",
-                  content: data.data?.[0]?.text || "🙂",
-                },
-              ]);
-              return;
-            }
+        case "aiMessage":
+          if (data.resultType === "products" && Array.isArray(data.data)) {
+            setMessages((prev) => [
+              ...prev,
+              { role: "ai", kind: "products", content: data.data },
+            ]);
+            return;
+          }
 
-            // FALLBACK (safety)
+          if (data.resultType === "order" && Array.isArray(data.data)) {
+            const order = data.data[0];
             setMessages((prev) => [
               ...prev,
               {
                 role: "ai",
-                kind: "text",
-                content: "I’m here to help 😊",
+                kind: "order",
+                content: {
+                  orderId: order.orderId,
+                  status: order.status,
+                  items: order.items,
+                  orderRealId: order.realOrderId,
+                },
               },
             ]);
-            break;
+            return;
           }
 
-          case "aiEnd":
-            setIsTyping(false);
-            break;
-
-          case "aiError":
+          if (data.resultType === "message") {
             setMessages((prev) => [
               ...prev,
-              { role: "ai", text: `Error: ${data.message}` },
+              { role: "ai", kind: "text", content: data.data?.[0]?.text || "🙂" },
             ]);
-            setIsTyping(false);
-            break;
+            return;
+          }
 
-          default:
-            break;
-        }
-      };
+          // fallback
+          setMessages((prev) => [
+            ...prev,
+            { role: "ai", kind: "text", content: "I’m here to help 😊" },
+          ]);
+          break;
 
-      wsRef.current.onerror = (err) => console.error("❌ WebSocket error", err);
+        case "aiEnd":
+          setIsTyping(false);
+          break;
 
-      wsRef.current.onclose = () => {
-        console.warn("⚠ WebSocket closed");
-        wsRef.current = null;
-      };
-    }
-  }, [authenticated]);
+        case "aiError":
+          setMessages((prev) => [
+            ...prev,
+            { role: "ai", kind: "text", content: `Error: ${data.message}` },
+          ]);
+          setIsTyping(false);
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    wsRef.current.onerror = (err) => console.error("❌ WebSocket error", err);
+
+    wsRef.current.onclose = () => {
+      console.warn("⚠ WebSocket closed");
+      wsRef.current = null;
+      setConnected(false);
+    };
+  }
+}, [authenticated]);
+
+
+// Close WS on logout
+useEffect(() => {
+  if (!authenticated && wsRef.current) {
+    wsRef.current.close();
+    wsRef.current = null;
+  }
+}, [authenticated]);
 
   // Close WS on logout
   useEffect(() => {
@@ -200,14 +218,13 @@ console.log(import.meta.env.VITE_WS_URL);
   }, [messages]);
 
   useEffect(() => {
-  if (scrollRef.current) {
-    scrollRef.current.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }
-}, [messages]);
-
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [messages]);
 
   return (
     <>
@@ -223,15 +240,15 @@ console.log(import.meta.env.VITE_WS_URL);
             base: "100%", // mobile
             sm: "360px", // small devices
             md: "400px", // tablets
-            lg: "450px", // laptops
-            xl: "500px", // desktops
+            lg: "400px", // laptops
+            xl: "400px", // desktops
           }}
           h={{
-            base: "70vh", // mobile
+            base: "60vh", // mobile
             sm: "450px", // small devices
-            md: "520px", // tablets
-            lg: "580px", // laptops
-            xl: "600px", // desktops
+            md: "450px", // tablets
+            lg: "490px", // laptops
+            xl: "500px", // desktops
           }}
           bg={bgColor}
           borderRadius={{ base: "0", md: "lg" }}
@@ -300,7 +317,35 @@ console.log(import.meta.env.VITE_WS_URL);
                       );
                     }
 
-                    // 💬 TEXT
+                    // 📦 ORDER STATUS
+                    if (msg.kind === "order") {
+                      return (
+                        <Box
+                          key={i}
+                          bg={orderCardBg}
+                          border="1px solid"
+                          borderColor="blue.200"
+                          borderRadius="md"
+                          p="3"
+                          mb="3"
+                          maxW="95%"
+                        >
+                          <Text fontWeight="bold">📦 Order Summary</Text>
+
+                          <Text fontSize="sm">
+                            <b>Order ID:</b> {msg.content.orderId}
+                          </Text>
+
+                          <Text fontSize="sm" mb="2">
+                            <b>Status:</b> {msg.content.status}
+                          </Text>
+
+                          <OrderItemsCarousel items={msg.content.items} orderId={msg.content.orderRealId} />
+                        </Box>
+                      );
+                    }
+
+                    // 💬 TEXT MESSAGE
                     return (
                       <Box
                         key={i}

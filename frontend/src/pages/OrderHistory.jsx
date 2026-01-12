@@ -158,7 +158,7 @@ const OrderHistory = () => {
                 ORDER ID
               </Text>
               <Text fontSize="sm" fontWeight="medium">
-                #{order._id.slice(-8)}
+                #{order.shortId}
               </Text>
             </VStack>
 

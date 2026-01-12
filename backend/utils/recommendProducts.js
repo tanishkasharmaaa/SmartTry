@@ -36,7 +36,7 @@ async function recommendProducts({
 
   // Fetch candidate products
   const products = await productModel.find(filter).lean();
-
+console.log(products,"---------products in recommend")
   // Score products
   const scored = products.map(p => {
     let score = 0;
@@ -60,7 +60,11 @@ async function recommendProducts({
   // Sort by score
   scored.sort((a, b) => b.score - a.score);
 
-  return scored.slice(0, limit);
+  // ✅ IMAGE NORMALIZATION ADDED
+  return scored.slice(0, limit).map(p => ({
+    ...p,
+    image: p.image || p.images?.[0] || null,
+  }));
 }
 
 module.exports = recommendProducts;

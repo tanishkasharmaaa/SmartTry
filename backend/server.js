@@ -7,6 +7,7 @@ const passport = require("passport");
 const cookieParser = require("cookie-parser");
 const { v4: uuid4 } = require("uuid");
 const WebSocket = require("ws");
+const jwt = require("jsonwebtoken");
 
 const connectDb = require("./config/db");
 require("./config/passportSetup");
@@ -83,55 +84,82 @@ const server = app.listen(PORT, async () => {
 
 // ---------------------------------- WEBSOCKET SERVER ----------------------------------
 
-// ---------------------------------- WEBSOCKET SERVER ----------------------------------
-// ---------------------------------- WEBSOCKET SERVER ----------------------------------
+const url = require("url");
 const wss = new WebSocket.Server({ server });
-const sessions = new Map(); // sessionId -> ws
+const sessions = new Map(); // sessionId -> { ws, userId }
 
-wss.on("connection", (ws) => {
-  // Generate a unique session ID for this connection
+wss.on("connection", (ws, req) => {
+  let token;
+
+  // 1️⃣ Try to get token from URL query (for local/dev)
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`); // parse query
+    token = url.searchParams.get("token");
+    console.log(token)
+  } catch {}
+
+  // 2️⃣ If not in URL, try to get token from cookies (production)
+  if (!token) {
+    const rawCookies = req.headers.cookie || "";
+    const cookies = Object.fromEntries(
+      rawCookies.split("; ").map(c => {
+        const [key, ...v] = c.split("=");
+        return [key, v.join("=")];
+      })
+    );
+    token = cookies.token;
+  }
+
+  // 3️⃣ If still no token → close connection
+  if (!token) {
+    console.log("❌ No token found, closing connection");
+    ws.close();
+    return;
+  }
+
+  // 4️⃣ Verify JWT
+  let userId;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    console.log(decoded)
+    userId = decoded.userId;
+    ws.userId = userId;
+    console.log(`✅ WS connected: User ID = ${userId}`);
+  } catch (err) {
+    console.log("❌ Invalid token, closing connection");
+    ws.close();
+    return;
+  }
+
+  // 5️⃣ Generate sessionId and store
   const sessionId = uuid4();
-  sessions.set(sessionId, ws);
+  sessions.set(sessionId, { ws, userId });
 
-  console.log(`✨ New WebSocket connection: ${sessionId}`);
+  // 6️⃣ Inform client
+  ws.send(JSON.stringify({ type: "connected", sessionId, userId }));
 
-  // Inform client that connection is established
-  ws.send(JSON.stringify({ type: "connected", sessionId }));
-
-  // Keep connection state
-  let connected = true;
-
+  // 7️⃣ Handle messages
   ws.on("message", async (message) => {
     try {
       const data = JSON.parse(message);
 
-      // Handle AI ask requests
       if (data.type === "askAI") {
         const askAI = require("./utils/askAI");
 
-        // Mock req/res objects for WebSocket calls
-        const req = { body: data };
+        // Mock req/res objects for askAI
+        const req = { body: data, userId };
         const res = {
           status: (code) => ({
             json: (obj) => {
-              ws.send(JSON.stringify({ ...obj, status: code, sessionId }));
+              ws.send(JSON.stringify({ ...obj, status: code, sessionId, userId }));
             },
           }),
         };
 
-        // Call askAI, passing ws so streaming / product carousel works
         await askAI(req, res, ws);
-
-        return;
       }
-
-      // Add other message types here if needed
-      // Example: typing indicators, read receipts, etc.
-
     } catch (err) {
       console.error("❌ WebSocket message error:", err);
-
-      // Send AI fallback message if anything fails
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(
           JSON.stringify({
@@ -141,40 +169,31 @@ wss.on("connection", (ws) => {
               {
                 type: "message",
                 text:
-                  "Oops! Something went wrong 😅.\n\n" +
-                  "Try asking:\n" +
-                  "• Products under 5000\n" +
-                  "• Best items for men\n" +
-                  "• Top rated products\n" +
-                  "• Categories available\n\n" +
-                  "I’m here to help 😊",
+                  "Oops! Something went wrong 😅.\n\nTry asking:\n• Products under 5000\n• Best items for men\n• Top rated products\n• Categories available\n\nI’m here to help 😊",
               },
             ],
             fallback: true,
             sessionId,
+            userId,
           })
         );
-        ws.send(JSON.stringify({ type: "aiEnd", sessionId }));
+        ws.send(JSON.stringify({ type: "aiEnd", sessionId, userId }));
       }
     }
   });
 
-  // Connection closed
+  // 8️⃣ Handle close & errors
   ws.on("close", () => {
-    console.log(`❌ WS connection closed: ${sessionId}`);
+    console.log(`❌ WS connection closed: sessionId=${sessionId}, userId=${userId}`);
     sessions.delete(sessionId);
-    connected = false;
   });
 
-  ws.on("error", (err) => {
-    console.error("⚠ WebSocket Error:", err);
-    connected = false;
-  });
+  ws.on("error", (err) => console.error("⚠ WebSocket Error:", err));
 
-  // Optional: heartbeat/ping to check if client is alive
+  // 9️⃣ Optional heartbeat/ping
   const pingInterval = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "ping", sessionId }));
+      ws.send(JSON.stringify({ type: "ping", sessionId, userId }));
     } else {
       clearInterval(pingInterval);
     }
