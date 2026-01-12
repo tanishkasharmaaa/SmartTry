@@ -23,7 +23,7 @@ import { motion } from "framer-motion";
 import { SearchIcon } from "@chakra-ui/icons";
 import { Link } from "react-router-dom";
 import Login from "./login";
-import SearchBox from "./searchBox";
+import {SearchBox} from "./searchbox";
 // import { clsx } from "clsx";
 
 const ThemeToggleButton5 = ({ onClick, isDark }) => {
