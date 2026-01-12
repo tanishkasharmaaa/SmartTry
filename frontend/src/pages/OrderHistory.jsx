@@ -115,9 +115,8 @@ const OrderHistory = () => {
   if (!orders.length) {
     return (
       <Flex justify="center" align="center" h="80vh" bg={bgPage}>
-        <Text fontSize="xl" color={textSecondary}>
-          You have no orders.
-        </Text>
+         <Text fontWeight="bold">Your cart is empty</Text>
+        <Button onClick={() => window.location("/")}>Back To Home</Button>
       </Flex>
     );
   }

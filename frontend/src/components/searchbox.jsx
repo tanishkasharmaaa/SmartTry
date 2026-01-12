@@ -17,7 +17,16 @@ import { useEffect, useState } from "react";
 
 const SearchBox = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const textColor = useColorModeValue("black", "white");
+
+  // 🎨 THEME COLORS (BLACK / WHITE / GREY)
+  const textPrimary = useColorModeValue("black", "white");
+  const textSecondary = useColorModeValue("gray.600", "gray.400");
+  const modalBg = useColorModeValue("white", "#111");
+  const inputBg = useColorModeValue("gray.100", "#000");
+  const borderColor = useColorModeValue("gray.200", "#333");
+  const hoverBg = useColorModeValue("gray.100", "#1a1a1a");
+  const activeBg = useColorModeValue("gray.200", "#1f1f1f");
+  const skeletonBg = useColorModeValue("gray.200", "gray.700");
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -41,7 +50,7 @@ const SearchBox = () => {
     }
   };
 
-  // ⏱ Debounce
+  // ⏱ DEBOUNCE SEARCH
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -55,12 +64,12 @@ const SearchBox = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // ♻️ Reset selection when results change
+  // ♻️ RESET SELECTION
   useEffect(() => {
     setSelectedIndex(-1);
   }, [results]);
 
-  // ⌨️ KEYBOARD NAVIGATION (IMPORTANT FIX)
+  // ⌨️ KEYBOARD NAVIGATION
   useEffect(() => {
     if (!isOpen || results.length === 0) return;
 
@@ -96,49 +105,70 @@ const SearchBox = () => {
 
   return (
     <>
+      {/* 🔍 SEARCH ICON */}
       <SearchIcon
         boxSize={5}
         cursor="pointer"
         onClick={onOpen}
-        color={textColor}
+        color={textPrimary}
       />
 
+      {/* 🔎 SEARCH MODAL */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
-        <ModalContent bg="#111" p={4} borderRadius="lg">
+        <ModalContent bg={modalBg} p={4} borderRadius="lg">
           <Input
             placeholder="Search products..."
             size="lg"
-            bg="#000"
-            color="white"
-            border="1px solid #333"
+            bg={inputBg}
+            color={textPrimary}
+            border="1px solid"
+            borderColor={borderColor}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
-            _placeholder={{ color: "gray.500" }}
+            _placeholder={{ color: textSecondary }}
             _focus={{ borderColor: "blue.400" }}
           />
 
           <Box mt={3} maxH="360px" overflowY="auto">
-            {/* LOADER */}
+            {/* ⏳ LOADER */}
             {loading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <HStack key={i} p={2} spacing={3}>
-                  <Skeleton boxSize="50px" borderRadius="md" />
+                  <Skeleton
+                    boxSize="50px"
+                    borderRadius="md"
+                    startColor={skeletonBg}
+                  />
                   <Box flex="1">
-                    <Skeleton height="12px" mb={2} />
-                    <Skeleton height="10px" width="60%" />
+                    <Skeleton
+                      height="12px"
+                      mb={2}
+                      startColor={skeletonBg}
+                    />
+                    <Skeleton
+                      height="10px"
+                      width="60%"
+                      startColor={skeletonBg}
+                    />
                   </Box>
-                  <Skeleton height="12px" width="40px" />
+                  <Skeleton
+                    height="12px"
+                    width="40px"
+                    startColor={skeletonBg}
+                  />
                 </HStack>
               ))}
 
+            {/* ❌ NO RESULTS */}
             {!loading && query && results.length === 0 && (
-              <Text color="gray.400" px={2}>
+              <Text color={textSecondary} px={2}>
                 No results found
               </Text>
             )}
 
+            {/* 📦 RESULTS */}
             <VStack align="stretch" spacing={1}>
               {!loading &&
                 results.map((item, index) => (
@@ -147,9 +177,10 @@ const SearchBox = () => {
                     p={3}
                     spacing={4}
                     cursor="pointer"
-                    borderBottom="1px solid #222"
-                    bg={index === selectedIndex ? "#1f1f1f" : "transparent"}
-                    _hover={{ bg: "#1a1a1a" }}
+                    borderBottom="1px solid"
+                    borderColor={borderColor}
+                    bg={index === selectedIndex ? activeBg : "transparent"}
+                    _hover={{ bg: hoverBg }}
                     onMouseEnter={() => setSelectedIndex(index)}
                     onClick={() => {
                       window.location.href = `/products/${item._id}-${item.name}`;
@@ -175,14 +206,14 @@ const SearchBox = () => {
 
                     <Box flex="1">
                       <Text
-                        color="white"
+                        color={textPrimary}
                         fontSize="sm"
                         fontWeight="semibold"
                         noOfLines={1}
                       >
                         {item.name}
                       </Text>
-                      <Text fontSize="xs" color="gray.400">
+                      <Text fontSize="xs" color={textSecondary}>
                         {item.category}
                       </Text>
                     </Box>

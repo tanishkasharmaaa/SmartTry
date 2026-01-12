@@ -66,6 +66,7 @@ const sendOrderUpdateEmail = async ({
   totalAmount,
   message,
 }) => {
+  console.log(items)
   try {
     if (!to || !orderId || !status || !Array.isArray(items) || items.length === 0) {
       throw new Error("Missing or invalid order email fields");
@@ -98,20 +99,22 @@ const sendOrderUpdateEmail = async ({
         .map(
           (item) => `
         <div style="display:flex; background:#181818; border-radius:12px; padding:15px; margin-bottom:15px; gap:15px; align-items:center; border:1px solid #333;">
-          <img 
-            src="${(item.image || "https://via.placeholder.com/120").trim()}" 
-            width="90" 
-            height="110" 
-            style="border-radius:10px; object-fit:cover; border:1px solid #333;"
-          />
+          
           <div style="flex:1;">
-            <h4 style="margin:0 0 5px; color:#fff; font-size:16px;">${item.title || "Product"}</h4>
+            <h4 style="margin:0 0 5px; color:#fff; font-size:16px;">${item.name || "Product"}</h4>
             <p style="margin:0; color:#bbb; font-size:13px;">
               Size: <strong style="color:#ddd;">${item.size || "Free Size"}</strong><br/>
               Quantity: <strong style="color:#ddd;">${item.quantity}</strong>
             </p>
             <p style="margin:8px 0 0; color:#fff; font-size:15px;">₹${item.price}</p>
           </div>
+          <img 
+           src="${item.image}"
+
+            width="90" 
+            height="110" 
+            style="border-radius:10px; object-fit:cover; border:1px solid #333;"
+          />
         </div>
       `).join("")}
     </div>

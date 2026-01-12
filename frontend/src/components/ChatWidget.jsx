@@ -43,113 +43,116 @@ export default function ChatWidget() {
   const orderCardBg = useColorModeValue("gray.50", "gray.700");
 
   // -------------------- WebSocket Setup --------------------
-  
- useEffect(() => {
-  if (!authenticated) return;
 
-  if (!wsRef.current) {
-    let wsUrl = import.meta.env.VITE_WS_URL + "/ws";
+  useEffect(() => {
+    if (!authenticated) return;
 
-    // If local dev, optionally pass a dev token
-    if (import.meta.env.DEV) {
-      const devToken = import.meta.env.VITE_DEV_TOKEN; // store a test token in .env.local
-      if (devToken) wsUrl += `?token=${devToken}`;
-    }
+    if (!wsRef.current) {
+      let wsUrl = import.meta.env.VITE_WS_URL + "/ws";
 
-    wsRef.current = new WebSocket(wsUrl);
-
-    wsRef.current.onopen = () => {
-      setConnected(true);
-      console.log("✅ WebSocket connected");
-    };
-
-    wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      switch (data.type) {
-        case "connected":
-          console.log("WebSocket sessionId:", data.sessionId);
-          setSessionId(data.sessionId);
-          setConnected(true);
-          break;
-
-        case "aiMessage":
-          if (data.resultType === "products" && Array.isArray(data.data)) {
-            setMessages((prev) => [
-              ...prev,
-              { role: "ai", kind: "products", content: data.data },
-            ]);
-            return;
-          }
-
-          if (data.resultType === "order" && Array.isArray(data.data)) {
-            const order = data.data[0];
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: "ai",
-                kind: "order",
-                content: {
-                  orderId: order.orderId,
-                  status: order.status,
-                  items: order.items,
-                  orderRealId: order.realOrderId,
-                },
-              },
-            ]);
-            return;
-          }
-
-          if (data.resultType === "message") {
-            setMessages((prev) => [
-              ...prev,
-              { role: "ai", kind: "text", content: data.data?.[0]?.text || "🙂" },
-            ]);
-            return;
-          }
-
-          // fallback
-          setMessages((prev) => [
-            ...prev,
-            { role: "ai", kind: "text", content: "I’m here to help 😊" },
-          ]);
-          break;
-
-        case "aiEnd":
-          setIsTyping(false);
-          break;
-
-        case "aiError":
-          setMessages((prev) => [
-            ...prev,
-            { role: "ai", kind: "text", content: `Error: ${data.message}` },
-          ]);
-          setIsTyping(false);
-          break;
-
-        default:
-          break;
+      // If local dev, optionally pass a dev token
+      if (import.meta.env.DEV) {
+        const devToken = import.meta.env.VITE_DEV_TOKEN; // store a test token in .env.local
+        if (devToken) wsUrl += `?token=${devToken}`;
       }
-    };
 
-    wsRef.current.onerror = (err) => console.error("❌ WebSocket error", err);
+      wsRef.current = new WebSocket(wsUrl);
 
-    wsRef.current.onclose = () => {
-      console.warn("⚠ WebSocket closed");
+      wsRef.current.onopen = () => {
+        setConnected(true);
+        console.log("✅ WebSocket connected");
+      };
+
+      wsRef.current.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case "connected":
+            console.log("WebSocket sessionId:", data.sessionId);
+            setSessionId(data.sessionId);
+            setConnected(true);
+            break;
+
+          case "aiMessage":
+            if (data.resultType === "products" && Array.isArray(data.data)) {
+              setMessages((prev) => [
+                ...prev,
+                { role: "ai", kind: "products", content: data.data },
+              ]);
+              return;
+            }
+
+            if (data.resultType === "order" && Array.isArray(data.data)) {
+              const order = data.data[0];
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "ai",
+                  kind: "order",
+                  content: {
+                    orderId: order.orderId,
+                    status: order.status,
+                    items: order.items,
+                    orderRealId: order.realOrderId,
+                  },
+                },
+              ]);
+              return;
+            }
+
+            if (data.resultType === "message") {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "ai",
+                  kind: "text",
+                  content: data.data?.[0]?.text || "🙂",
+                },
+              ]);
+              return;
+            }
+
+            // fallback
+            setMessages((prev) => [
+              ...prev,
+              { role: "ai", kind: "text", content: "I’m here to help 😊" },
+            ]);
+            break;
+
+          case "aiEnd":
+            setIsTyping(false);
+            break;
+
+          case "aiError":
+            setMessages((prev) => [
+              ...prev,
+              { role: "ai", kind: "text", content: `Error: ${data.message}` },
+            ]);
+            setIsTyping(false);
+            break;
+
+          default:
+            break;
+        }
+      };
+
+      wsRef.current.onerror = (err) => console.error("❌ WebSocket error", err);
+
+      wsRef.current.onclose = () => {
+        console.warn("⚠ WebSocket closed");
+        wsRef.current = null;
+        setConnected(false);
+      };
+    }
+  }, [authenticated]);
+
+  // Close WS on logout
+  useEffect(() => {
+    if (!authenticated && wsRef.current) {
+      wsRef.current.close();
       wsRef.current = null;
-      setConnected(false);
-    };
-  }
-}, [authenticated]);
-
-
-// Close WS on logout
-useEffect(() => {
-  if (!authenticated && wsRef.current) {
-    wsRef.current.close();
-    wsRef.current = null;
-  }
-}, [authenticated]);
+    }
+  }, [authenticated]);
 
   // Close WS on logout
   useEffect(() => {
@@ -237,18 +240,16 @@ useEffect(() => {
           left={{ base: "0", sm: "10px", md: "25px", lg: "30px" }}
           right={{ base: "0", sm: "10px", md: "auto" }}
           w={{
-            base: "100%", // mobile
-            sm: "360px", // small devices
-            md: "400px", // tablets
-            lg: "400px", // laptops
-            xl: "400px", // desktops
+            base: "100%",
+            sm: "100%",
+            md: "380px",
+            lg: "400px",
           }}
           h={{
-            base: "60vh", // mobile
-            sm: "450px", // small devices
-            md: "450px", // tablets
-            lg: "490px", // laptops
-            xl: "500px", // desktops
+            base: "70vh",
+            sm: "65vh",
+            md: "480px",
+            lg: "520px",
           }}
           bg={bgColor}
           borderRadius={{ base: "0", md: "lg" }}
@@ -340,7 +341,10 @@ useEffect(() => {
                             <b>Status:</b> {msg.content.status}
                           </Text>
 
-                          <OrderItemsCarousel items={msg.content.items} orderId={msg.content.orderRealId} />
+                          <OrderItemsCarousel
+                            items={msg.content.items}
+                            orderId={msg.content.orderRealId}
+                          />
                         </Box>
                       );
                     }
