@@ -2,76 +2,63 @@ const { GoogleGenAI } = require("@google/genai");
 require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 async function askGeminiFlash(
   query,
   products = [],
   categories = [],
-  history = []
+  context = {}
 ) {
   try {
-    const productList = products.slice(0, 20);
+    const productList = products.slice(0, 15); // 🔥 reduce load
 
     const contents = [
-      ...history,
       {
         role: "user",
         parts: [
           {
             text: `
-You are SmartTry AI, an expert ecommerce recommendation assistant.
+You are SmartTry AI, an ecommerce product recommendation assistant.
 
-Your task is to RECOMMEND relevant products to the user based on:
-• User interests
-• Cart behavior
-• Product tags
-• Category similarity
-• Gender preference (if any)
-
-STRICT RULES:
-- ONLY recommend from the products listed below.
+RULES:
+- Recommend ONLY from the products listed.
 - NEVER invent products or categories.
-- If nothing matches well, return an EMPTY JSON ARRAY [].
-- Return ONLY valid JSON (no markdown, no explanation text).
-- Each description must explain WHY it is recommended.
+- If nothing matches, return [].
+- Output ONLY valid JSON.
+- Max 3–8 products.
 
 AVAILABLE CATEGORIES:
 ${categories.join(", ")}
 
-AVAILABLE PRODUCTS (name | category | price | gender | rating | discount | tags | image):
+PRODUCTS (name | category | price | gender | rating | tags):
 ${productList
   .map(
     (p) =>
-      `${p.name} | ${p.category} | ${p.price} | ${p.gender} | ${
+      `${p.name} | ${p.category} | ${p.price} | ${p.gender || "Unisex"} | ${
         p.rating || 0
-      } | ${p.discount || 0} | ${p.tags?.join(", ") || ""}`
+      } | ${p.tags?.join(", ") || ""}`
   )
   .join("\n")}
 
 USER CONTEXT:
-- Interests: ${history?.userInterests?.join(", ") || "unknown"}
-- Cart tags: ${history?.cartTags?.join(", ") || "none"}
-- Gender preference: ${history?.gender || "any"}
+- Interests: ${context.userInterests?.join(", ") || "none"}
+- Cart tags: ${context.cartTags?.join(", ") || "none"}
+- Gender preference: ${context.gender || "any"}
 
 USER QUERY:
 "${query}"
 
-RESPONSE FORMAT (JSON ONLY):
+RESPONSE FORMAT:
 [
   {
-    "name": "Product name (exact match)",
+    "name": "Exact product name",
     "category": "Category",
     "price": 1000,
     "gender": "Men/Women/Unisex",
     "rating": 0,
-    "image": "image_url_if_available",
-    "description": "Why this product matches the user's interest or cart"
+    "description": "Why this product matches the user"
   }
 ]
-
-IMPORTANT:
-- Return 3–8 products only.
-- Prefer products with matching tags or same category as cart items.
-- If user asked for “best” or “quality”, prefer higher rating or popular tags.
 `,
           },
         ],
@@ -83,22 +70,21 @@ IMPORTANT:
       contents,
     });
 
+    console.log(response)
+
     let text =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
+      response?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+
+    // 🔥 Strong sanitization
     text = text
-      .replace(/^```json/, "")
-      .replace(/```$/, "")
+      .replace(/```json|```/g, "")
+      .replace(/,\s*]/g, "]")
       .trim();
 
-    try {
-      return JSON.parse(text);
-    } catch (err) {
-      console.warn("AI returned invalid JSON, fallback to empty array.", text);
-      return [];
-    }
+    return JSON.parse(text);
   } catch (err) {
-    console.error("Gemini Flash Error:", err);
-    return [];
+    console.error("Gemini Flash Error:", err.message);
+    return []; // ✅ SAFE FALLBACK
   }
 }
 
