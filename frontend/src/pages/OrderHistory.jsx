@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import TrackingSlider from "../components/TrackingSlider";
 import {useToast} from "../context/useToast"
+import { useNavigate } from "react-router-dom";
 
 const OrderHistory = () => {
   const [orders, setOrders] = useState([]);
@@ -24,6 +25,8 @@ const OrderHistory = () => {
   const borderColor = useColorModeValue("#e0e0e0", "#333"); // grey borders
   const textPrimary = useColorModeValue("#000", "#fff"); // main text
   const textSecondary = useColorModeValue("#555", "#aaa"); // secondary text
+
+  const navigate = useNavigate()
   
   const {showToast} = useToast()
   // Fetch orders from backend
@@ -113,11 +116,23 @@ const OrderHistory = () => {
   }
 
   if (!orders.length) {
-    return (
-      <Flex justify="center" align="center" h="80vh" bg={bgPage}>
-         <Text fontWeight="bold">Your cart is empty</Text>
-        <Button onClick={() => window.location("/")}>Back To Home</Button>
-      </Flex>
+    return (<Flex
+      direction="column"
+      justify="center"
+      align="center"
+      h="80vh"
+      bg={bgPage}
+      gap={4} // spacing between text and button
+    >
+      <Text fontWeight="bold" fontSize="2xl">
+        Your order history is empty
+      </Text>
+      <Button variant="outline"
+              size="sm"
+              borderColor={'grey'} onClick={() => navigate("/")}>
+        Back To Home
+      </Button>
+    </Flex>
     );
   }
 

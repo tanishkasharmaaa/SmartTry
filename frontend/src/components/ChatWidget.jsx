@@ -82,6 +82,14 @@ export default function ChatWidget() {
               return;
             }
 
+            if(data.resultType === "categories" && Array.isArray(data.data)){
+              setMessages((prev) => [
+                ...prev,
+                { role: "ai", kind: "text", content: `We offer the following categories : ${data.data.join(", ")}` },
+              ]);
+              return;
+            }
+
             if (data.resultType === "order" && Array.isArray(data.data)) {
               const order = data.data[0];
               setMessages((prev) => [

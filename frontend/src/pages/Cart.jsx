@@ -202,7 +202,9 @@ const Cart = () => {
                   <FiShoppingCart size={48} />
                 </Box>
                 <Text fontWeight="bold">Your cart is empty</Text>
-                <Button onClick={() => navigate("/")}>Continue to shop</Button>
+                <Button variant="outline"
+              size="sm"
+              borderColor={'grey'} onClick={() => navigate("/")}>Continue to shop</Button>
               </VStack>
             </Flex>
           ) : (
