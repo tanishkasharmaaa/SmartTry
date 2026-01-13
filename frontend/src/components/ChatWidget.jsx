@@ -82,17 +82,23 @@ export default function ChatWidget() {
               return;
             }
 
-            if(data.resultType === "categories" && Array.isArray(data.data)){
+            if (data.resultType === "categories" && Array.isArray(data.data)) {
               setMessages((prev) => [
                 ...prev,
-                { role: "ai", kind: "text", content: `We offer the following categories : ${data.data.join(", ")}` },
+                {
+                  role: "ai",
+                  kind: "text",
+                  content: `We offer the following categories : ${data.data.join(
+                    ", "
+                  )}`,
+                },
               ]);
               return;
             }
 
             if (data.resultType === "order" && Array.isArray(data.data)) {
               const order = data.data[0];
-              console.log(order,"-----order from ws-----")
+              console.log(order, "-----order from ws-----");
               setMessages((prev) => [
                 ...prev,
                 {
@@ -302,14 +308,25 @@ export default function ChatWidget() {
             <>
               <Box
                 flex="1"
-                minH={0}
-                overflowY="auto"
-                overflowX="hidden"
-                px="3"
-                py="2"
-                ref={scrollRef}
+  minH={0}
+  overflowY="auto"
+  overflowX="hidden"
+  px="3"
+  py="2"
+  ref={scrollRef}
+  display="flex"
+  flexDirection="column"
+  justifyContent={messages.length === 0 ? "center" : "flex-start"}
               >
                 <Flex direction="column">
+                  {messages.length === 0 && (
+                    <Box textAlign="center" opacity={0.8}>
+                      <Text fontSize="sm" color={subText} mb="3">
+                        Hi! I’m SmartTry AI. Ask me about our products,
+                        categories, or your order status 😊
+                      </Text>
+                    </Box>
+                  )}
                   {messages.map((msg, i) => {
                     // 🛒 PRODUCTS
                     if (msg.kind === "products") {

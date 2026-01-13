@@ -48,21 +48,24 @@ const askAI = async (req, res, ws = null, history = []) => {
       history
     );
 
-    if (Array.isArray(aiResult) && aiResult.length) {
-      const payload = {
-        type: "aiMessage",
-        resultType: "products",
-        data: aiResult,
-      };
+    /* ======================================================
+   🔥 NEW: HANDLE GEMINI RESULT OBJECT
+====================================================== */
+if (aiResult?.resultType === "products" && aiResult.data?.length) {
+  const payload = {
+    type: "aiMessage",
+    resultType: "products",
+    data: aiResult.data,
+  };
 
-      if (ws?.readyState === 1) {
-        ws.send(JSON.stringify(payload));
-        ws.send(JSON.stringify({ type: "aiEnd" }));
-        return;
-      }
+  if (ws?.readyState === 1) {
+    ws.send(JSON.stringify(payload));
+    ws.send(JSON.stringify({ type: "aiEnd" }));
+    return;
+  }
 
-      return res.json({ success: true, ...payload });
-    }
+  return res.json({ success: true, ...payload });
+}
 
     /* ======================================================
        2️⃣ MANUAL FALLBACK
