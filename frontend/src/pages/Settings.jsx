@@ -312,7 +312,7 @@ const Settings = () => {
           <Stack spacing={3}>
             <InfoRow
               label="Birthday"
-              value={user.birthday.split("T")[0] || "Not provided"}
+              value={user.birthday || "Not provided"}
             />
             <InfoRow label="Gender" value={user.gender || "Not specified"} />
             <InfoRow label="Bio" value={user.bio || "No bio added"} />
