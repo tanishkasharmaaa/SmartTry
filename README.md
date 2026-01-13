@@ -210,12 +210,13 @@ npm run dev
 
 ### 🤖 AI Chat Experience
 ![Chat](/frontend/public/1.png)
-![Chat](/frontend/public/7.png)
+![Chat](/frontend/public/8.png)
 ![Products and Filter](/frontend/public/2.png)
 ![Single Product](/frontend/public/3.png)
 ![Checkout](/frontend/public/4.png)
 ![Review and Pay](/frontend/public/5.png)
 ![Final Payment](/frontend/public/6.png)
+![Order History](/frontend/public/7.png)
 * Clean, modern UI with Chakra UI
 
 ```
