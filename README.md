@@ -208,7 +208,6 @@ npm run dev
 
 ### 🤖 SmartTry in Desktop Screen
 ![Chat](/frontend/public/1.png)
-![Chat](/frontend/public/8.png)
 ![Products and Filter](/frontend/public/2.png)
 ![Single Product](/frontend/public/3.png)
 ![Checkout](/frontend/public/4.png)
@@ -219,10 +218,10 @@ npm run dev
 ### 🤖 SmartTry in Mobile Screen
 <p align="center">
   <div style="display: flex; gap: 16px; justify-content: center;">
-    <img src="/frontend/public/8.png" width="220" alt="Mobile Home" />
-    <img src="/frontend/public/9.png" width="220" alt="Mobile Chat" />
-    <img src="/frontend/public/10.png" width="220" alt="Mobile Order" />
-    <img src="/frontend/public/11.png" width="220" alt="Mobile Order" />
+    <img src="/frontend/public/8.png" width="190" alt="Mobile Home" />
+    <img src="/frontend/public/9.png" width="190" alt="Mobile Chat" />
+    <img src="/frontend/public/10.png" width="190" alt="Mobile Order" />
+    <img src="/frontend/public/11.png" width="190" alt="Mobile Order" />
   </div>
 </p>
 
