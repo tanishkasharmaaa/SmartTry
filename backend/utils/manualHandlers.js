@@ -7,7 +7,8 @@ const handleManual = async ({ query, req }) => {
   const q = query.toLowerCase().trim();
 
   /* ================= SAFE GREETING ================= */
-  if (/\b(hello|hi|hey|greetings|good morning|good evening)\b/i.test(q)) {
+  if (/^(hello|hi|hey|greetings|good morning|good evening)$/i.test(q))
+ {
     return {
       resultType: "message",
       data: [
@@ -165,7 +166,8 @@ const handleManual = async ({ query, req }) => {
   }
 
   /* ================= KEYWORD SEARCH ================= */
-  const keywords = q.split(" ").filter((w) => w.length > 2);
+  const greetingWords = ["hello","hi","hey","greetings"];
+const keywords = q.split(" ").filter(w => w.length > 2 && !greetingWords.includes(w));
 
   if (keywords.length) {
     const filter = {
