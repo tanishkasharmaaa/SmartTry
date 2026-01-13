@@ -206,9 +206,7 @@ npm run dev
 
 ### 🖼️ Product Discovery & AI Chat
 
-*Add screenshots here*
-
-### 🤖 AI Chat Experience
+### 🤖 SmartTry in Desktop Screen
 ![Chat](/frontend/public/1.png)
 ![Chat](/frontend/public/8.png)
 ![Products and Filter](/frontend/public/2.png)
@@ -217,13 +215,17 @@ npm run dev
 ![Review and Pay](/frontend/public/5.png)
 ![Final Payment](/frontend/public/6.png)
 ![Order History](/frontend/public/7.png)
-* Clean, modern UI with Chakra UI
 
-```
-/screenshots/chat-home.png
-/screenshots/product-recommendation.png
-/screenshots/order-tracking.png
-```
+### 🤖 SmartTry in Mobile Screen
+<p align="center">
+  <div style="display: flex; gap: 16px; justify-content: center;">
+    <img src="/frontend/public/8.png" width="220" alt="Mobile Home" />
+    <img src="/frontend/public/9.png" width="220" alt="Mobile Chat" />
+    <img src="/frontend/public/10.png" width="220" alt="Mobile Order" />
+    <img src="/frontend/public/11.png" width="220" alt="Mobile Order" />
+  </div>
+</p>
+
 
 > 📌 Tip: Add real screenshots to make recruiters instantly engaged.
 
@@ -234,7 +236,7 @@ npm run dev
 > A short walkthrough explaining the idea, architecture, and features of SmartTry.
 
 🔗 **Watch Demo Video:**
-(Add YouTube / Loom / Drive link here)
+🌐 **Live Demo:** https://smart-try.vercel.app/  
 
 ### What the video covers:
 
