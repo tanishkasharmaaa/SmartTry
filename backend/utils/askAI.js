@@ -41,30 +41,51 @@ const askAI = async (req, res, ws = null, history = []) => {
     /* ======================================================
        1️⃣ AI FIRST
     ====================================================== */
-    const aiResult = await askGeminiFlash(
-      query,
-      products,
-      categories,
-      history
-    );
+   const aiResult = await askGeminiFlash(
+  query,
+  products,
+  categories,
+  history
+);
 
-    /* ======================================================
-   🔥 NEW: HANDLE GEMINI RESULT OBJECT
+/* ======================================================
+   🔥 HANDLE GEMINI RESULT OBJECT (PRODUCTS + MESSAGE)
 ====================================================== */
-if (aiResult?.resultType === "products" && aiResult.data?.length) {
-  const payload = {
-    type: "aiMessage",
-    resultType: "products",
-    data: aiResult.data,
-  };
 
-  if (ws?.readyState === 1) {
-    ws.send(JSON.stringify(payload));
-    ws.send(JSON.stringify({ type: "aiEnd" }));
-    return;
+if (aiResult) {
+  // 🛍️ PRODUCT RESPONSE
+  if (aiResult.resultType === "products" && aiResult.data?.length) {
+    const payload = {
+      type: "aiMessage",
+      resultType: "products",
+      data: aiResult.data,
+    };
+
+    if (ws?.readyState === 1) {
+      ws.send(JSON.stringify(payload));
+      ws.send(JSON.stringify({ type: "aiEnd" }));
+      return;
+    }
+
+    return res.json({ success: true, ...payload });
   }
 
-  return res.json({ success: true, ...payload });
+  // 💬 NORMAL MESSAGE RESPONSE
+  if (aiResult.resultType === "message" && aiResult.data?.length) {
+    const payload = {
+      type: "aiMessage",
+      resultType: "message",
+      data: aiResult.data,
+    };
+
+    if (ws?.readyState === 1) {
+      ws.send(JSON.stringify(payload));
+      ws.send(JSON.stringify({ type: "aiEnd" }));
+      return;
+    }
+
+    return res.json({ success: true, ...payload });
+  }
 }
 
     /* ======================================================

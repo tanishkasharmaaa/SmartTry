@@ -14,6 +14,7 @@ import ChatToggleButton from "./ChatToggleButton";
 import Login from "./login";
 import AiProductCarousel from "./AiProductCarousel";
 import OrderItemsCarousel from "./OrderItemsCarousel";
+import MarkDown from "./MarkDown";
 
 export default function ChatWidget() {
   const { authenticated } = useContext(AuthContext);
@@ -389,7 +390,7 @@ export default function ChatWidget() {
                         maxW="85%"
                         mb="2"
                       >
-                        {msg.content}
+                        <MarkDown text={msg.content} />
                       </Box>
                     );
                   })}
