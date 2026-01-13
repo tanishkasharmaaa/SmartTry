@@ -208,8 +208,14 @@ npm run dev
 
 *Add screenshots here*
 
-* AI-powered chat recommendations
-* Product carousels inside chat
+### 🤖 AI Chat Experience
+![Chat](/frontend/public/1.png)
+![Chat](/frontend/public/7.png)
+![Products and Filter](/frontend/public/2.png)
+![Single Product](/frontend/public/3.png)
+![Checkout](/frontend/public/4.png)
+![Review and Pay](/frontend/public/5.png)
+![Final Payment](/frontend/public/6.png)
 * Clean, modern UI with Chakra UI
 
 ```
