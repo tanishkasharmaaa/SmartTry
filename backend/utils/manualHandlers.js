@@ -66,6 +66,7 @@ const handleManual = async ({ query, req }) => {
         status: o.orderStatus,
         items: o.items,
         totalAmount: o.totalAmount,
+        realOrderId: o._id,
       })),
     };
   }
@@ -147,6 +148,7 @@ const handleManual = async ({ query, req }) => {
         userId: req.userId,
         limit: 10,
       });
+      console.log(results,"------recommend results------")
 
       if (results.length) {
         return { resultType: "products", data: results };
@@ -167,25 +169,23 @@ const handleManual = async ({ query, req }) => {
 
   /* ================= KEYWORD SEARCH ================= */
   const greetingWords = ["hello","hi","hey","greetings"];
-const keywords = q.split(" ").filter(w => w.length > 2 && !greetingWords.includes(w));
+  const keywords = q.split(" ").filter(w => w.length > 2 && !greetingWords.includes(w));
 
+  // Build filter
+  const filter = {};
+  if (genders.length) filter.gender = { $in: genders };
+  if (Object.keys(priceFilter).length) filter.price = priceFilter;
   if (keywords.length) {
-    const filter = {
-      $or: [
-        { name: { $regex: keywords.join("|"), $options: "i" } },
-        { tags: { $regex: keywords.join("|"), $options: "i" } },
-        { category: { $regex: keywords.join("|"), $options: "i" } },
-      ],
-      ...(genders.length && { gender: { $in: genders } }),
-      ...(Object.keys(priceFilter).length && { price: priceFilter }),
-    };
-
-    const products = await productModel.find(filter).limit(20).lean();
-
-    if (products.length) {
-      return { resultType: "products", data: products };
-    }
+    filter.$or = [
+      { name: { $regex: keywords.join("|"), $options: "i" } },
+      { tags: { $regex: keywords.join("|"), $options: "i" } },
+      { category: { $regex: keywords.join("|"), $options: "i" } },
+    ];
   }
+
+  const products = await productModel.find(filter).limit(20).lean();
+  if (products.length) return { resultType: "products", data: products };
+
 
   /* ================= HARD STOP ================= */
   return null;
