@@ -25,7 +25,7 @@ console.log(products)
       >
         {products.map((product) => (
           <Box
-            key={product._id}
+            key={product._id||product.id}
             w="150px"
             h="200px"
             border="1px solid"
@@ -36,7 +36,7 @@ console.log(products)
             flexShrink={0}
             cursor="pointer"
             onClick={() =>
-              navigate(`/products/${product._id}-${product.name}`)
+              navigate(`/products/${product._id||product.id}-${product.name}`)
             }
           >
             {/* FIXED IMAGE HEIGHT */}

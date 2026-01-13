@@ -92,6 +92,7 @@ export default function ChatWidget() {
 
             if (data.resultType === "order" && Array.isArray(data.data)) {
               const order = data.data[0];
+              console.log(order,"-----order from ws-----")
               setMessages((prev) => [
                 ...prev,
                 {
