@@ -29,7 +29,7 @@ import { useToast } from "../context/useToast";
 const Login = ({ buttonName, close }) => {
   const { authenticated, logout, user } = useContext(AuthContext);
   const { cartCount } = useContext(CartContext);
-  console.log(user);
+  console.log(cartCount);
 
   const bg = useColorModeValue("white", "black");
   const googleBorder = useColorModeValue("gray.300", "gray.600");

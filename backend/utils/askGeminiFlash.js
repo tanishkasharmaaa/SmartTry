@@ -6,7 +6,7 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 /* -------------------- INTENT HELPERS -------------------- */
 
 const isThankYou = (q) =>
-  /(thanks|thank you|thx|ty|thanks a lot)/i.test(q.trim());
+  /(thank(s| you)|thx|ty)/i.test(q.trim());
 
 const isAboutSmartTry = (q) =>
   /(what is smarttry|about smarttry|who are you|who is smarttry|what do you do)/i.test(
@@ -21,6 +21,11 @@ const isConfusedFashionIntent = (q) =>
 const isRandomNonShopping = (q) =>
   /(what is coding|what is ai|what is javascript|who is|what is life|tell me a joke)/i.test(
     q.trim()
+  );
+
+const isShoppingIntent = (q) =>
+  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit)/i.test(
+    q
   );
 
 /* -------------------- SMART REPLIES -------------------- */
@@ -40,12 +45,7 @@ const getFallbackReply = () => {
 
 /* -------------------- MAIN FUNCTION -------------------- */
 
-async function askGeminiFlash(
-  query,
-  products = [],
-  categories = [],
-  context = {}
-) {
+async function askGeminiFlash(query, products = [], categories = [], context = {}) {
   try {
     if (!query || !query.trim()) return null;
 
@@ -92,7 +92,20 @@ async function askGeminiFlash(
     }
 
     /* 🛑 NO PRODUCTS */
-    if (!products.length) return null;
+    if (!products.length) {
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getFallbackReply() }],
+      };
+    }
+
+    /* ❌ BLOCK NON-SHOPPING QUERIES */
+    if (!isShoppingIntent(query)) {
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getFallbackReply() }],
+      };
+    }
 
     /* 🛍️ PRODUCT SELECTION (GEMINI) */
     const productList = products.slice(0, 20);
@@ -106,15 +119,10 @@ async function askGeminiFlash(
 You are **SmartTry AI**, a fashion-only ecommerce assistant.
 
 IMPORTANT:
-SmartTry ONLY helps with clothing recommendations.
-If the query is NOT about buying or choosing clothes, return [].
-
-STRICT RULES:
-- Use ONLY products from the list below
-- NEVER invent or rename products
-- NEVER return text outside JSON
-- If nothing matches, return []
-- Return 3–8 best matching clothing products
+- Only recommend clothing products from the list below.
+- Do NOT invent products.
+- Return JSON array of 3-8 products or [] if none match.
+- NEVER include text outside JSON.
 
 AVAILABLE PRODUCTS (JSON):
 ${JSON.stringify(
@@ -156,23 +164,25 @@ RESPONSE FORMAT (ONLY JSON):
       contents,
     });
 
-    let text =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-
+    let text = response?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
     text = text.replace(/```json|```/g, "").trim();
 
     const selected = JSON.parse(text);
-    console.log("💡 Gemini Flash selected:", selected);
 
-    if (!Array.isArray(selected) || selected.length === 0) return null;
+    // ✅ STRICT VALIDATION: Only allow real products
+    const allowedNames = productList.map(p => p.name);
+    const finalProducts =
+      Array.isArray(selected) && selected.length
+        ? selected.filter((s) => allowedNames.includes(s.name))
+        : [];
 
-    const selectedNames = selected.map((s) => s.name);
-
-    const finalProducts = productList.filter((p) =>
-      selectedNames.includes(p.name)
-    );
-
-    if (!finalProducts.length) return null;
+    // ❌ If no valid product, return fallback message
+    if (!finalProducts.length) {
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getFallbackReply() }],
+      };
+    }
 
     return {
       resultType: "products",
