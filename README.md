@@ -11,7 +11,7 @@ It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, a
 ### 🤖 AI Chat Assistant
 
 * Natural language product search
-* Semantic recommendations ("trending outfits", "best shoes for men")
+* Semantic recommendations ("trending outfits", "best outfits for men")
 * Hybrid AI: **Manual logic + Gemini Flash AI**
 * Zero hallucination (AI only uses DB products)
 
@@ -234,8 +234,9 @@ npm run dev
 
 > A short walkthrough explaining the idea, architecture, and features of SmartTry.
 
-🔗 **Watch Demo Video:**
+🔗 **Watch Demo Video:** [LinkedIn Demo](https://www.linkedin.com/posts/tanishka-304953274_smarttry-aiinecommerce-hybridai-activity-7417095784107577344-of-n?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEMPVvQBpboMeA3e-ruxDSlTaqdlwCHv1TQ)
 🌐 **Live Demo:** https://smart-try.vercel.app/  
+
 
 ### What the video covers:
 
