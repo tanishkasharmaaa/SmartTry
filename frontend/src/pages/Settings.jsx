@@ -69,17 +69,16 @@ const Settings = () => {
     },
   });
 
- const handleInterestsChange = (e) => {
-  const value = e.target.value;
+  const handleInterestsChange = (e) => {
+    const value = e.target.value;
 
-  const updated = value
-    .split(",")
-    .map((i) => i.trim().toLowerCase())
-    .filter(Boolean);
+    const updated = value
+  .split(",")
+  .map((i) => i.trim().toLowerCase());
 
-  setFormData((prev) => ({ ...prev, interest: updated }));
-};
 
+    setFormData((prev) => ({ ...prev, interest: updated }));
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
