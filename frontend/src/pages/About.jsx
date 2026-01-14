@@ -58,7 +58,7 @@ export default function About() {
             </Text>
             <Text color={muted}>
               Ask things like <i>“Girls outfits under 3000”</i> or
-              <i> “Trending shoes for men”</i> and SmartTry instantly
+              <i> “Trending Outfit for men”</i> and SmartTry instantly
               understands intent, price, gender, and trends.
             </Text>
             <Text color={muted}>

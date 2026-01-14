@@ -22,7 +22,7 @@ export const CartProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      const res = await fetch("${import.meta.env.VITE_API_URL}/api/cart", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
         credentials: "include",
       });
 
