@@ -11,8 +11,7 @@ const isAboutSmartTry = (q) =>
   /(what is smarttry|about smarttry|who are you|who is smarttry|what do you do)/i.test(q.trim());
 const isConfusedFashionIntent = (q) =>
   /(i'?m confused|confused what to buy|don'?t know what to wear|help me choose|suggest something|confused)/i.test(q.trim());
-const isOrderIntent = (q) =>
-  /(my order|order status|track order|order details|where is my order)/i.test(q);
+
 const isRandomNonShopping = (q) =>
   /(what is coding|what is ai|what is javascript|who is|what is life|tell me a joke)/i.test(q.trim());
 const isShoppingIntent = (q) =>
@@ -35,8 +34,7 @@ const getThankYouReply = () => {
   ];
   return replies[Math.floor(Math.random() * replies.length)];
 };
-const getOrderReply = () =>
-  "📦 Sure! Please provide your Order ID so I can check your order details. say : **Track my order status #7bcdefh6";
+
 const getFallbackReply = () =>
   "😊 I’m here to help you with clothing and outfit suggestions. Try asking things like *“show me men’s casual shirts”* or *“party wear for women”*.";
 
@@ -60,8 +58,7 @@ async function askGeminiFlash(query, products = [], categories = [], context = {
       return { resultType: "message", data: [{ type: "message", text: "🤖 I’m SmartTry AI — your fashion shopping assistant. I help you find the right clothes based on style, gender, price, and trends." }] };
     if (isConfusedFashionIntent(fullConversation))
       return { resultType: "message", data: [{ type: "message", text: "No worries 😊 Let’s figure it out together. Are you shopping for men or women, and is it for casual, office, or party wear?" }] };
-    if (isOrderIntent(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: getOrderReply() }] };
+    
     if (isRandomNonShopping(fullConversation))
       return { resultType: "message", data: [{ type: "message", text: getFallbackReply() }] };
     if (!products.length || !isShoppingIntent(fullConversation)) return null; // <-- return null if no products
@@ -75,14 +72,27 @@ async function askGeminiFlash(query, products = [], categories = [], context = {
         role: "user",
         parts: [
           {
-            text: `
-You are **SmartTry AI**, a fashion-only ecommerce assistant.
+            text: `You are **SmartTry AI**, a fashion-only ecommerce assistant.
 
-IMPORTANT:
+ORDER HANDLING RULES (VERY IMPORTANT):
+- If the user asks about order status AND no order ID is provided:
+  → Respond ONLY with:
+    📦 Please provide your Order ID like this: Track my order #df507cf2
+
+- If the user ALREADY provides an order ID (example: #df507cf2):
+  → Respond ONLY with:
+    📦 Got it! I’m checking the status of your order #<ORDER_ID>. Please wait ⏳
+
+- NEVER ask for the order ID again if it is already present
+- NEVER invent order details
+- NEVER return product recommendations for order-related queries
+- ORDER QUERIES MUST RETURN PLAIN TEXT (NOT JSON)
+
+IMPORTANT (FOR SHOPPING QUERIES ONLY):
 - Only recommend clothing products from the list below.
 - Do NOT invent products.
 - Return JSON array of 3-8 products or [] if none match.
-- NEVER include text outside JSON.
+- NEVER include text outside JSON FOR SHOPPING QUERIES.
 
 AVAILABLE PRODUCTS (JSON):
 ${JSON.stringify(
@@ -109,13 +119,10 @@ ${historyText}
 USER QUERY:
 "${query}"
 
-RESPONSE FORMAT (ONLY JSON):
-[
-  {
-    "name": "Exact product name from list",
-    "reason": "Short, friendly reason why this outfit suits the customer"
-  }
-]
+RESPONSE FORMAT:
+- Order-related queries → Plain text only
+- Shopping queries → JSON array ONLY
+
 `,
           },
         ],

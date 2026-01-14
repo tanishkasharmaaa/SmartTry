@@ -62,7 +62,7 @@ const askAI = async (req, res, ws = null, context = {}) => {
       {
         type: "message",
         text:
-          "🤔 I couldn’t find a perfect match yet. Try:\n• Best shoes for men\n• Girls outfits under 3000\n• Trending fashion",
+          "🤔 I couldn’t find a perfect match yet. Try:\n• Best outfit for men\n• Girls outfits under 3000\n• Trending fashion",
       },
     ];
 
