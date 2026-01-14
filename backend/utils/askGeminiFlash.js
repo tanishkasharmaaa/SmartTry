@@ -36,7 +36,7 @@ const getThankYouReply = () => {
   return replies[Math.floor(Math.random() * replies.length)];
 };
 const getOrderReply = () =>
-  "📦 Sure! Please provide your email ID so I can check your order details.";
+  "📦 Sure! Please provide your Order ID so I can check your order details. say : **Track my order status #7bcdefh6";
 const getFallbackReply = () =>
   "😊 I’m here to help you with clothing and outfit suggestions. Try asking things like *“show me men’s casual shirts”* or *“party wear for women”*.";
 
