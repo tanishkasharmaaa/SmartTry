@@ -90,6 +90,7 @@ async function recommendProducts({ userId, limit = 10 }) {
           image: product.image,
           rating: product.rating,
           discount: product.discount,
+          description:product.description,
           tags: product.tags,
           score,
         };

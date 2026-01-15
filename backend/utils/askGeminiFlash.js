@@ -6,7 +6,7 @@ const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 /* -------------------- INTENT HELPERS -------------------- */
 const isGreeting = (q) =>
   /^(hi|hello|hey|good morning|good afternoon|good evening)$/i.test(q.trim());
-const isThankYou = (q) => /(thank(s| you)|thx|ty)/i.test(q.trim());
+const isThankYou = (q) => /(thank(s| you)|thx)/i.test(q.trim());
 const isAboutSmartTry = (q) =>
   /(what is smarttry|about smarttry|who are you|who is smarttry|what do you do)/i.test(q.trim());
 const isConfusedFashionIntent = (q) =>
@@ -40,6 +40,7 @@ const getFallbackReply = () =>
 
 /* -------------------- MAIN FUNCTION -------------------- */
 async function askGeminiFlash(query, products = [], categories = [], context = {}) {
+  console.log(query,"-----ai")
   try {
     if (!query || !query.trim()) return null; // <-- return null if no query
 
@@ -74,7 +75,9 @@ async function askGeminiFlash(query, products = [], categories = [], context = {
           {
             text: `You are **SmartTry AI**, a fashion-only ecommerce assistant.
 
+==============================
 ORDER HANDLING RULES (VERY IMPORTANT):
+==============================
 - If the user asks about order status AND no order ID is provided:
   → Respond ONLY with:
     📦 Please provide your Order ID like this: Track my order #df507cf2
@@ -87,14 +90,82 @@ ORDER HANDLING RULES (VERY IMPORTANT):
 - NEVER invent order details
 - NEVER return product recommendations for order-related queries
 - ORDER QUERIES MUST RETURN PLAIN TEXT (NOT JSON)
+- If a query contains BOTH order-related intent AND shopping intent:
+  → PRIORITIZE order handling and ignore shopping intent completely
 
+==============================
+VAGUE SHOPPING INTENT HANDLING (VERY IMPORTANT):
+==============================
+- If the user asks for recommendations WITHOUT specifying clear details
+  (examples: "show me something", "recommend as per my interest", "suggest something for me"):
+  → Respond ONLY with the following plain text (NO JSON):
+
+  😊 Sure! Tell me about your styling so I can show you products accordingly.
+  • Shopping for men or women?
+  • Occasion: casual, office, weddings, farewell party or party ?
+  • Any budget preference?
+
+- DO NOT recommend products until these details are provided
+- DO NOT return JSON for vague shopping queries
+- Ask this clarification ONLY ONCE per conversation
+- If required details already exist in USER CONTEXT or USER HISTORY, DO NOT ask again
+
+==============================
+SMART CLARIFICATION & INFERENCE RULES:
+==============================
+- If the shopping intent is clear but some details are missing:
+  - Infer preferences from USER CONTEXT and USER HISTORY when possible
+  - Infer gender, occasion, or budget only if confidence is high
+  - If confidence is low, ask a clarification question instead of guessing
+- Never ask unnecessary follow-up questions
+
+==============================
 IMPORTANT (FOR SHOPPING QUERIES ONLY):
-- Only recommend clothing products from the list below.
-- Do NOT invent products.
-- Return JSON array of 3-8 products or [] if none match.
-- NEVER include text outside JSON FOR SHOPPING QUERIES.
+==============================
+- Only recommend clothing products from the AVAILABLE PRODUCTS list
+- Do NOT invent products, brands, prices, or categories
+- Return a JSON array of 3–8 products
+- If no products match, return an empty JSON array []
+- NEVER include any text outside JSON for shopping queries
 
+==============================
+RECOMMENDATION QUALITY RULES:
+==============================
+- Prefer higher-rated products when multiple options match
+- Ensure variety (avoid recommending very similar items)
+- Match products closely with:
+  - User interests
+  - Cart preferences
+  - Occasion and budget
+- Do NOT repeat the same category excessively unless requested
+
+==============================
+REASON FIELD RULES:
+==============================
+- Each recommended product MUST include a short "reason"
+- Reason must reference user preference, occasion, or budget
+- Keep reason concise (maximum 1 sentence)
+- Do NOT include emojis inside JSON
+
+==============================
+NO MATCH HANDLING:
+==============================
+- If no suitable products are found:
+  → Return [] only
+- Do NOT explain
+- Do NOT suggest alternatives unless explicitly asked
+
+==============================
+BRAND VOICE & STYLE:
+==============================
+- Friendly, confident, and helpful
+- Emojis allowed ONLY in plain-text responses
+- Never sound uncertain or apologetic
+- Never break format rules
+
+==============================
 AVAILABLE PRODUCTS (JSON):
+==============================
 ${JSON.stringify(
   productList.map((p) => ({
     name: p.name,
@@ -108,21 +179,29 @@ ${JSON.stringify(
   2
 )}
 
+==============================
 USER CONTEXT:
+==============================
 - Interests: ${context.userInterests?.join(", ") || "none"}
 - Cart preferences: ${context.cartTags?.join(", ") || "none"}
 - Preferred gender: ${context.gender || "any"}
 
+==============================
 USER HISTORY:
+==============================
 ${historyText}
 
+==============================
 USER QUERY:
+==============================
 "${query}"
 
-RESPONSE FORMAT:
+==============================
+RESPONSE FORMAT (STRICT):
+==============================
 - Order-related queries → Plain text only
+- Vague shopping queries → Plain text only
 - Shopping queries → JSON array ONLY
-
 `,
           },
         ],
@@ -134,30 +213,52 @@ RESPONSE FORMAT:
       contents,
     });
 
-    let text = response?.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-    text = text.replace(/```json|```/g, "").trim();
+    let text =
+  response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-    let selected;
-    try {
-      selected = JSON.parse(text);
-    } catch {
-      selected = [];
-    }
+// remove code fences if any
+text = text.replace(/```json|```/g, "").trim();
 
-    // 3️⃣ Map to real products + include reason
-    const finalProducts =
-      Array.isArray(selected) && selected.length
-        ? selected
-            .map((s) => {
-              const product = productList.find((p) => p.name === s.name);
-              if (!product) return null;
-              return { ...product, reason: s.reason || "" };
-            })
-            .filter(Boolean)
-        : [];
+console.log("🤖 Gemini raw output:", text);
 
-    // 4️⃣ If no valid product, return null to trigger manual fallback
-    return finalProducts.length ? { resultType: "products", data: finalProducts } : null;
+// ✅ CASE 1: JSON → product recommendations
+if (text.startsWith("[")) {
+  let selected = [];
+
+  try {
+    selected = JSON.parse(text);
+  } catch (err) {
+    console.error("❌ JSON parse failed:", err.message);
+    selected = [];
+  }
+
+  const finalProducts =
+    Array.isArray(selected) && selected.length
+      ? selected
+          .map((s) => {
+            const product = productList.find((p) => p.name === s.name);
+            if (!product) return null;
+            return { ...product, reason: s.reason || "" };
+          })
+          .filter(Boolean)
+      : [];
+
+  return finalProducts.length
+    ? { resultType: "products", data: finalProducts }
+    : { resultType: "products", data: [] };
+}
+
+// ✅ CASE 2: Plain text → message (order / vague intent / clarification)
+if (text.length) {
+  return {
+    resultType: "message",
+    data: [{ type: "message", text }],
+  };
+}
+
+// ✅ CASE 3: Nothing useful
+return null;
+
   } catch (err) {
     console.error("❌ Gemini Flash Error:", err.message);
     return null; // <-- smart null response

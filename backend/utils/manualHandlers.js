@@ -223,7 +223,7 @@ const searchKeywords = q
 }
 
   /* ================= RECOMMEND ================= */
-  if (/\b(recommend|suggest|best|popular|trending)\b/i.test(q)) {
+  if (/\b(recommend|suggest|best|popular|trending|recommendations|recommendation)\b/i.test(q)) {
     if (req.userId) {
       const results = await recommendProducts({
         userId: req.userId,
