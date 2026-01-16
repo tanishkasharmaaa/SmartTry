@@ -57,7 +57,9 @@ function App() {
       </Routes>
      {
       authenticated&&<ChatWidget/>
-     } 
+     }
+      
+      
     </>
   );
 }
