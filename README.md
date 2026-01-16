@@ -15,6 +15,10 @@ It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, a
 * Hybrid AI: **Manual logic + Gemini Flash AI**
 * Zero hallucination (AI only uses DB products)
 
+>### 🔐 Login Required
+> * SmartTry AI is available only to authenticated users to ensure personalization,
+> * secure order access, and controlled AI usage.
+
 ### 🛒 Product Discovery
 
 * Browse by category, gender, price
