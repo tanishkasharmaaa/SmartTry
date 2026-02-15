@@ -24,9 +24,8 @@ const isRandomNonShopping = (q) =>
     q.trim(),
   );
 const isShoppingIntent = (q) =>
-  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(
-    q,
-  );
+  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(q);
+
 
 /* -------------------- SMART REPLIES -------------------- */
 const getGreetingReply = () => {
@@ -106,20 +105,16 @@ async function askGeminiFlash(
     // Only retrieve products when shopping intent exists
     if (!isShoppingIntent(fullConversation)) return null;
 
-    // 🔥 Fetch relevant products from MongoDB instead of using all products
-    const relevantProducts = await retrieveRelevantProducts(
+    const productList = await retrieveRelevantProducts(
       ProductModel,
       fullConversation,
       30,
     );
 
-    if (!relevantProducts.length)
-      return {
-        resultType: "products",
-        data: [],
-      };
+    if (!productList.length) return { resultType: "products", data: [] };
 
-    const productList = relevantProducts;
+    /* ---------- COMPACT PRODUCTS FOR AI ---------- */
+
     const compactProducts = productList.map((p, i) => ({
       id: i + 1,
       n: p.name,
@@ -192,6 +187,10 @@ IMPORTANT (FOR SHOPPING QUERIES ONLY):
 - Do NOT invent products, brands, prices, or categories
 - Return a JSON array of 3–8 products
 - If no products match, return an empty JSON array []
+  Return ONLY JSON array:
+[
+  { "id": 3, "reason": "Perfect for party wear" }
+]
 - NEVER include any text outside JSON for shopping queries
 
 ==============================
@@ -254,6 +253,7 @@ USER QUERY:
 ==============================
 RESPONSE FORMAT (STRICT):
 ==============================
+- If returning JSON, output VALID PARSEABLE JSON ONLY (no markdown, no code blocks, no extra text before or after)
 - Order-related queries → Plain text only
 - Vague shopping queries → Plain text only
 - Shopping queries → JSON array ONLY
@@ -268,8 +268,23 @@ RESPONSE FORMAT (STRICT):
       contents,
     });
 
-    let text =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+   let text =
+  response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+if (!text) {
+  return {
+    resultType: "message",
+    data: [
+      {
+        type: "message",
+        text: "⚠️ AI response failed. Please try again.",
+      },
+    ],
+  };
+}
+
+text = text.trim();
+
 
     // remove code fences if any
     text = text.replace(/```json|```/g, "").trim();
@@ -283,27 +298,45 @@ RESPONSE FORMAT (STRICT):
       try {
         selected = JSON.parse(text);
       } catch (err) {
-        console.error("❌ JSON parse failed:", err.message);
-        selected = [];
-      }
+  console.error("JSON parse failed:", err.message);
+  return {
+    resultType: "message",
+    data: [
+      {
+        type: "message",
+        text: "⚠️ I had trouble understanding that. Please try again.",
+      },
+    ],
+  };
+}
 
-      const finalProducts =
-        Array.isArray(selected) && selected.length
-          ? selected
-              .map((s) => {
-                const product = productList[s.id - 1];
-                if (!product) return null;
-                return { ...product.toObject(), reason: s.reason || "" };
-              })
-              .filter(Boolean)
-          : [];
 
-      return finalProducts.length
-        ? { resultType: "products", data: finalProducts }
-        : { resultType: "products", data: [] };
+      const finalProducts = selected
+        .map((s) => {
+          const product = productList[s.id - 1];
+          if (!product) return null;
+
+          return {
+            _id: product._id,
+            name: product.name,
+            category: product.category,
+            price: product.price,
+            gender: product.gender,
+            rating: product.rating,
+            tags: product.tags,
+            reason: s.reason || "",
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        resultType: "products",
+        data: finalProducts,
+      };
     }
 
     // ✅ CASE 2: Plain text → message (order / vague intent / clarification)
+
     if (text.length) {
       return {
         resultType: "message",
@@ -311,11 +344,10 @@ RESPONSE FORMAT (STRICT):
       };
     }
 
-    // ✅ CASE 3: Nothing useful
     return null;
   } catch (err) {
-    console.error("❌ Gemini Flash Error:", err.message);
-    return null; // <-- smart null response
+    console.error("Gemini Error:", err.message);
+    return null;
   }
 }
 

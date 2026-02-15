@@ -1,10 +1,13 @@
 const productModel = require("../model/products");
 const handleManual = require("./manualHandlers");
 const askGeminiFlash = require("./askGeminiFlash");
+const WebSocket = require("ws"); // ✅ ADDED: proper websocket constant
+
 require("dotenv").config();
 
 function send(ws, res, resultType, data) {
-  if (ws?.readyState === 1) {
+  // ✅ UPDATED: use WebSocket.OPEN instead of 1
+  if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "aiMessage", resultType, data }));
     ws.send(JSON.stringify({ type: "aiEnd" }));
     return;
@@ -18,9 +21,15 @@ const askAI = async (req, res, ws = null, context = {}) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ message: "Query required" });
 
+    /* ================= CONTEXT PERSISTENCE (SAFE ADDITION) ================= */
+    // ✅ ADDED: persist context per websocket session
+    if (ws) {
+      ws.context = ws.context || {};
+      context = ws.context;
+    }
+
     /* ================= FETCH DATA ================= */
     const categories = await productModel.distinct("category");
-    const products = await productModel.find({}).limit(30).lean();
 
     /* ================= UPDATE CONTEXT ================= */
     if (/for men|men/i.test(query)) context.gender = "Men";
@@ -34,13 +43,10 @@ const askAI = async (req, res, ws = null, context = {}) => {
     context.history = context.history || [];
 
     /* ================= AI FIRST ================= */
-    let aiResult = await askGeminiFlash(query, products, categories, context);
+    let aiResult = await askGeminiFlash(query, [], categories, context);
 
-    // ✅ If AI returns null or empty products, fallback to manual
-    if (
-      !aiResult ||
-      (aiResult.resultType === "products" && Array.isArray(aiResult.data) && aiResult.data.length === 0)
-    ) {
+    // ✅ If AI fails → fallback to manual
+    if (!aiResult) {
       aiResult = await handleManual({ query, req });
     }
 
@@ -54,6 +60,12 @@ const askAI = async (req, res, ws = null, context = {}) => {
             ? aiResult.data.map((d) => d.text).join("\n")
             : aiResult.data.map((p) => p.name).join(", "),
       });
+
+      // ✅ ADDED: prevent infinite history growth
+      if (context.history.length > 10) {
+        context.history.shift();
+      }
+
       return;
     }
 
@@ -67,10 +79,21 @@ const askAI = async (req, res, ws = null, context = {}) => {
     ];
 
     send(ws, res, "message", fallback);
-    context.history.push({ user: query, ai: fallback.map((d) => d.text).join("\n") });
+
+    context.history.push({
+      user: query,
+      ai: fallback.map((d) => d.text).join("\n"),
+    });
+
+    // ✅ ADDED: history cap here too
+    if (context.history.length > 10) {
+      context.history.shift();
+    }
+
   } catch (err) {
     console.error("ASK AI ERROR:", err);
-    if (ws?.readyState === 1) {
+
+    if (ws?.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
           type: "aiError",
@@ -79,6 +102,7 @@ const askAI = async (req, res, ws = null, context = {}) => {
       );
       return;
     }
+
     return res.status(500).json({
       success: false,
       message: "AI temporarily unavailable",

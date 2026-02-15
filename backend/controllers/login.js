@@ -23,6 +23,7 @@ const login = async (req, res) => {
       user._id,
       user.seller
     );
+    console.log("Generated JWT:", token);
 
     // Remove password before sending user data
     const userData = user.toObject();
@@ -39,7 +40,7 @@ const login = async (req, res) => {
     return res.status(200).json({
       message: "Login successful",
       user: userData,
-      token, // optional: you may remove this if storing only in cookies
+      token: token, // optional: you may remove this if storing only in cookies
     });
 
   } catch (error) {
