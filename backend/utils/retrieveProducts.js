@@ -28,7 +28,8 @@ async function retrieveRelevantProducts(ProductModel, query, limit = 30) {
         price: 1,
         gender: 1,
         rating: 1,
-        tags: 1
+        tags: 1,
+        image:1
       }
     }
   ]);
