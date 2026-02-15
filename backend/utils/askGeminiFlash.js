@@ -24,8 +24,9 @@ const isRandomNonShopping = (q) =>
     q.trim(),
   );
 const isShoppingIntent = (q) =>
-  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(q);
-
+  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(
+    q,
+  );
 
 /* -------------------- SMART REPLIES -------------------- */
 const getGreetingReply = () => {
@@ -123,6 +124,7 @@ async function askGeminiFlash(
       g: p.gender || "Unisex",
       r: p.rating || 0,
       t: p.tags || [],
+      image: p.image || null,
     }));
 
     const historyText = JSON.stringify(
@@ -268,23 +270,21 @@ RESPONSE FORMAT (STRICT):
       contents,
     });
 
-   let text =
-  response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-if (!text) {
-  return {
-    resultType: "message",
-    data: [
-      {
-        type: "message",
-        text: "⚠️ AI response failed. Please try again.",
-      },
-    ],
-  };
-}
+    if (!text) {
+      return {
+        resultType: "message",
+        data: [
+          {
+            type: "message",
+            text: "⚠️ AI response failed. Please try again.",
+          },
+        ],
+      };
+    }
 
-text = text.trim();
-
+    text = text.trim();
 
     // remove code fences if any
     text = text.replace(/```json|```/g, "").trim();
@@ -298,18 +298,17 @@ text = text.trim();
       try {
         selected = JSON.parse(text);
       } catch (err) {
-  console.error("JSON parse failed:", err.message);
-  return {
-    resultType: "message",
-    data: [
-      {
-        type: "message",
-        text: "⚠️ I had trouble understanding that. Please try again.",
-      },
-    ],
-  };
-}
-
+        console.error("JSON parse failed:", err.message);
+        return {
+          resultType: "message",
+          data: [
+            {
+              type: "message",
+              text: "⚠️ I had trouble understanding that. Please try again.",
+            },
+          ],
+        };
+      }
 
       const finalProducts = selected
         .map((s) => {
@@ -324,10 +323,24 @@ text = text.trim();
             gender: product.gender,
             rating: product.rating,
             tags: product.tags,
+            image: product.image,
             reason: s.reason || "",
           };
         })
         .filter(Boolean);
+
+      // ✅ NEW: Handle empty results
+      if (!finalProducts.length) {
+        return {
+          resultType: "message",
+          data: [
+            {
+              type: "message",
+              text: "😔 Sorry, I couldn’t find matching products. Try searching like:\n• Casual outfits for men\n• Party wear for women\n• Trending fashion",
+            },
+          ],
+        };
+      }
 
       return {
         resultType: "products",
