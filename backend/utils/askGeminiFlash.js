@@ -1,4 +1,7 @@
 const { GoogleGenAI } = require("@google/genai");
+const retrieveRelevantProducts = require("../utils/retrieveProducts");
+const ProductModel = require("../model/products"); // your mongoose model
+
 require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -8,14 +11,22 @@ const isGreeting = (q) =>
   /^(hi|hello|hey|good morning|good afternoon|good evening)$/i.test(q.trim());
 const isThankYou = (q) => /(thank(s| you)|thx)/i.test(q.trim());
 const isAboutSmartTry = (q) =>
-  /(what is smarttry|about smarttry|who are you|who is smarttry|what do you do)/i.test(q.trim());
+  /(what is smarttry|about smarttry|who are you|who is smarttry|what do you do)/i.test(
+    q.trim(),
+  );
 const isConfusedFashionIntent = (q) =>
-  /(i'?m confused|confused what to buy|don'?t know what to wear|help me choose|suggest something|confused)/i.test(q.trim());
+  /(i'?m confused|confused what to buy|don'?t know what to wear|help me choose|suggest something|confused)/i.test(
+    q.trim(),
+  );
 
 const isRandomNonShopping = (q) =>
-  /(what is coding|what is ai|what is javascript|who is|what is life|tell me a joke)/i.test(q.trim());
+  /(what is coding|what is ai|what is javascript|who is|what is life|tell me a joke)/i.test(
+    q.trim(),
+  );
 const isShoppingIntent = (q) =>
-  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(q);
+  /(show|find|buy|shop|casual|party|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|men's|women's|for men|for women)/i.test(
+    q,
+  );
 
 /* -------------------- SMART REPLIES -------------------- */
 const getGreetingReply = () => {
@@ -39,8 +50,13 @@ const getFallbackReply = () =>
   "😊 I’m here to help you with clothing and outfit suggestions. Try asking things like *“show me men’s casual shirts”* or *“party wear for women”*.";
 
 /* -------------------- MAIN FUNCTION -------------------- */
-async function askGeminiFlash(query, products = [], categories = [], context = {}) {
-  console.log(query,"-----ai")
+async function askGeminiFlash(
+  query,
+  products = [],
+  categories = [],
+  context = {},
+) {
+  console.log(query, "-----ai");
   try {
     if (!query || !query.trim()) return null; // <-- return null if no query
 
@@ -52,21 +68,71 @@ async function askGeminiFlash(query, products = [], categories = [], context = {
 
     // 1️⃣ Handle simple intents
     if (isGreeting(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: getGreetingReply() }] };
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getGreetingReply() }],
+      };
     if (isThankYou(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: getThankYouReply() }] };
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getThankYouReply() }],
+      };
     if (isAboutSmartTry(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: "🤖 I’m SmartTry AI — your fashion shopping assistant. I help you find the right clothes based on style, gender, price, and trends." }] };
+      return {
+        resultType: "message",
+        data: [
+          {
+            type: "message",
+            text: "🤖 I’m SmartTry AI — your fashion shopping assistant. I help you find the right clothes based on style, gender, price, and trends.",
+          },
+        ],
+      };
     if (isConfusedFashionIntent(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: "No worries 😊 Let’s figure it out together. Are you shopping for men or women, and is it for casual, office, or party wear?" }] };
-    
-    if (isRandomNonShopping(fullConversation))
-      return { resultType: "message", data: [{ type: "message", text: getFallbackReply() }] };
-    if (!products.length || !isShoppingIntent(fullConversation)) return null; // <-- return null if no products
+      return {
+        resultType: "message",
+        data: [
+          {
+            type: "message",
+            text: "No worries 😊 Let’s figure it out together. Are you shopping for men or women, and is it for casual, office, or party wear?",
+          },
+        ],
+      };
 
-    // 2️⃣ Prepare products and history for Gemini
-    const productList = products.slice(0, 20);
-    const historyText = JSON.stringify(context.history?.map((h) => ({ user: h.user, ai: h.ai })) || []);
+    if (isRandomNonShopping(fullConversation))
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: getFallbackReply() }],
+      };
+    // Only retrieve products when shopping intent exists
+    if (!isShoppingIntent(fullConversation)) return null;
+
+    // 🔥 Fetch relevant products from MongoDB instead of using all products
+    const relevantProducts = await retrieveRelevantProducts(
+      ProductModel,
+      fullConversation,
+      30,
+    );
+
+    if (!relevantProducts.length)
+      return {
+        resultType: "products",
+        data: [],
+      };
+
+    const productList = relevantProducts;
+    const compactProducts = productList.map((p, i) => ({
+      id: i + 1,
+      n: p.name,
+      c: p.category,
+      pr: p.price,
+      g: p.gender || "Unisex",
+      r: p.rating || 0,
+      t: p.tags || [],
+    }));
+
+    const historyText = JSON.stringify(
+      context.history?.map((h) => ({ user: h.user, ai: h.ai })) || [],
+    );
 
     const contents = [
       {
@@ -166,18 +232,7 @@ BRAND VOICE & STYLE:
 ==============================
 AVAILABLE PRODUCTS (JSON):
 ==============================
-${JSON.stringify(
-  productList.map((p) => ({
-    name: p.name,
-    category: p.category,
-    price: p.price,
-    gender: p.gender || "Unisex",
-    rating: p.rating || 0,
-    tags: p.tags || [],
-  })),
-  null,
-  2
-)}
+${JSON.stringify(compactProducts, null, 2)}
 
 ==============================
 USER CONTEXT:
@@ -214,51 +269,50 @@ RESPONSE FORMAT (STRICT):
     });
 
     let text =
-  response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
 
-// remove code fences if any
-text = text.replace(/```json|```/g, "").trim();
+    // remove code fences if any
+    text = text.replace(/```json|```/g, "").trim();
 
-console.log("🤖 Gemini raw output:", text);
+    console.log("🤖 Gemini raw output:", text);
 
-// ✅ CASE 1: JSON → product recommendations
-if (text.startsWith("[")) {
-  let selected = [];
+    // ✅ CASE 1: JSON → product recommendations
+    if (text.startsWith("[")) {
+      let selected = [];
 
-  try {
-    selected = JSON.parse(text);
-  } catch (err) {
-    console.error("❌ JSON parse failed:", err.message);
-    selected = [];
-  }
+      try {
+        selected = JSON.parse(text);
+      } catch (err) {
+        console.error("❌ JSON parse failed:", err.message);
+        selected = [];
+      }
 
-  const finalProducts =
-    Array.isArray(selected) && selected.length
-      ? selected
-          .map((s) => {
-            const product = productList.find((p) => p.name === s.name);
-            if (!product) return null;
-            return { ...product, reason: s.reason || "" };
-          })
-          .filter(Boolean)
-      : [];
+      const finalProducts =
+        Array.isArray(selected) && selected.length
+          ? selected
+              .map((s) => {
+                const product = productList[s.id - 1];
+                if (!product) return null;
+                return { ...product.toObject(), reason: s.reason || "" };
+              })
+              .filter(Boolean)
+          : [];
 
-  return finalProducts.length
-    ? { resultType: "products", data: finalProducts }
-    : { resultType: "products", data: [] };
-}
+      return finalProducts.length
+        ? { resultType: "products", data: finalProducts }
+        : { resultType: "products", data: [] };
+    }
 
-// ✅ CASE 2: Plain text → message (order / vague intent / clarification)
-if (text.length) {
-  return {
-    resultType: "message",
-    data: [{ type: "message", text }],
-  };
-}
+    // ✅ CASE 2: Plain text → message (order / vague intent / clarification)
+    if (text.length) {
+      return {
+        resultType: "message",
+        data: [{ type: "message", text }],
+      };
+    }
 
-// ✅ CASE 3: Nothing useful
-return null;
-
+    // ✅ CASE 3: Nothing useful
+    return null;
   } catch (err) {
     console.error("❌ Gemini Flash Error:", err.message);
     return null; // <-- smart null response
