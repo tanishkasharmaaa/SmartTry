@@ -142,24 +142,20 @@ USER QUERY:
 
     // 🔥 Fallback if text search fails
     if (!products.length) {
-      const keywords = improvedQuery.split(" ");
-
-      products = await ProductModel.find({
-        $or: keywords.map((word) => ({
-          $or: [
-            { name: { $regex: word, $options: "i" } },
-            { description: { $regex: word, $options: "i" } },
-            { category: { $regex: word, $options: "i" } },
-            { tags: { $elemMatch: { $regex: word, $options: "i" } } },
-          ],
-        })),
-      })
-        .sort({ averageRating: -1 })
-        .limit(20);
+      return {
+        resultType: "message",
+        data: [
+          {
+            type: "message",
+            text:
+              "😔 No products found. Try searching like:\n\n• Casual shirts for men\n• Party dresses\n• Hoodies under ₹2000\n• Summer outfits",
+          },
+        ],
+      };
     }
 
     /* =============================
-       4️⃣ FINAL RESPONSE
+       5️⃣ RETURN PRODUCTS
     ============================== */
 
     return {
@@ -167,14 +163,15 @@ USER QUERY:
       data: products,
     };
   } catch (err) {
-    console.error("Gemini Error:", err.message);
+    console.error("Search Error:", err.message);
 
     return {
       resultType: "message",
       data: [
         {
           type: "message",
-          text: "⚠️ Something went wrong. Please try again.",
+          text:
+            "😔 No products found. Try searching with different keywords.",
         },
       ],
     };
