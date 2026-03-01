@@ -125,6 +125,7 @@ export default function ChatWidget() {
                   content: data.data?.[0]?.text || "🙂",
                 },
               ]);
+              
               return;
             }
 
