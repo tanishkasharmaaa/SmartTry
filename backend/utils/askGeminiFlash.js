@@ -187,7 +187,7 @@ IMPORTANT (FOR SHOPPING QUERIES ONLY):
 ==============================
 - Only recommend clothing products from the AVAILABLE PRODUCTS list
 - Do NOT invent products, brands, prices, or categories
-- Return a JSON array of 3–8 products
+- Return a JSON array of 5–8 products
 - If no products match, return an empty JSON array []
   Return ONLY JSON array:
 [
@@ -310,54 +310,61 @@ RESPONSE FORMAT (STRICT):
         };
       }
 
-      const finalProducts = selected
-        .map((s) => {
-          const product = productList[s.id - 1];
-          if (!product) return null;
+    const finalProducts = selected
+  .map((s) => {
+    const product = productList[s.id - 1];
+    if (!product) return null;
 
-          return {
-            _id: product._id,
-            name: product.name,
-            category: product.category,
-            price: product.price,
-            gender: product.gender,
-            rating: product.rating,
-            tags: product.tags,
-            image: product.image,
-            reason: s.reason || "",
-          };
-        })
-        .filter(Boolean);
+    return {
+      _id: product._id,
+      name: product.name,
+      category: product.category,
+      price: product.price,
+      gender: product.gender,
+      rating: product.rating,
+      tags: product.tags,
+      image: product.image,
+      reason: s.reason || "",
+    };
+  })
+  .filter(Boolean);
 
-      // ✅ NEW: Handle empty results
-      if (!finalProducts.length) {
-        return {
-          resultType: "message",
-          data: [
-            {
-              type: "message",
-              text: "😔 Sorry, I couldn’t find matching products. Try searching like:\n• Casual outfits for men\n• Party wear for women\n• Trending fashion",
-            },
-          ],
-        };
-      }
+// ✅ Handle empty results
+if (!finalProducts.length) {
+  return {
+    resultType: "message",
+    data: [
+      {
+        type: "message",
+        text: "😔 I couldn’t find matching products. Try searching like:\n\n• Casual outfits for men\n• Party wear for women\n• Black sneakers under ₹2000\n• Trending summer fashion",
+      },
+    ],
+  };
+}
 
-      return {
-        resultType: "products",
-        data: finalProducts,
-      };
-    }
+return {
+  resultType: "products",
+  data: finalProducts,
+};
+}
 
-    // ✅ CASE 2: Plain text → message (order / vague intent / clarification)
+// ✅ CASE 2: Plain text → message
+if (text.length) {
+  return {
+    resultType: "message",
+    data: [{ type: "message", text }],
+  };
+}
 
-    if (text.length) {
-      return {
-        resultType: "message",
-        data: [{ type: "message", text }],
-      };
-    }
-
-    return null;
+return {
+  resultType: "message",
+  data: [
+    {
+      type: "message",
+      text: "🤔 I couldn’t understand that. Try searching something like:\n\n• Casual outfits for men\n• Party wear for women\n"
+    },
+  ],
+};
   } catch (err) {
     console.error("Gemini Error:", err.message);
     return null;
