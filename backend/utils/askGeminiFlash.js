@@ -4,10 +4,12 @@ require("dotenv").config();
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-/* ---------------- SIMPLE INTENTS ---------------- */
+/* -------------------- INTENT HELPERS -------------------- */
 
 const isGreeting = (q) =>
-  /^(hi|hello|hey|good morning|good evening)$/i.test(q.trim());
+  /^(hi|hello|hey|good morning|good afternoon|good evening)$/i.test(q.trim());
+
+const isThankYou = (q) => /(thank(s| you)|thx)/i.test(q);
 
 const isOrderQuery = (q) => /(track|order|status)/i.test(q);
 
@@ -17,15 +19,15 @@ const extractOrderId = (q) => {
 };
 
 const isShoppingIntent = (q) =>
-  /(show|find|buy|shop|dress|shirt|jeans|t-shirt|hoodie|outfit|casual|party|men|women|unisex)/i.test(
+  /(show|find|buy|shop|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|casual|party|men|women|unisex)/i.test(
     q
   );
 
-/* ---------------- MAIN FUNCTION ---------------- */
+/* -------------------- MAIN FUNCTION -------------------- */
 
 async function askGeminiFlash(query) {
   try {
-    if (!query?.trim()) {
+    if (!query || !query.trim()) {
       return {
         resultType: "message",
         data: [{ type: "message", text: "Please enter something to search." }],
@@ -35,13 +37,22 @@ async function askGeminiFlash(query) {
     const cleanQuery = query.trim();
 
     /* =============================
-       1️⃣ SIMPLE REPLIES
+       1️⃣ SIMPLE INTENTS
     ============================== */
 
     if (isGreeting(cleanQuery)) {
       return {
         resultType: "message",
-        data: [{ type: "message", text: "👋 Hello! What are you shopping for today?" }],
+        data: [
+          { type: "message", text: "👋 Hello! What are you shopping for today?" },
+        ],
+      };
+    }
+
+    if (isThankYou(cleanQuery)) {
+      return {
+        resultType: "message",
+        data: [{ type: "message", text: "😊 You're welcome!" }],
       };
     }
 
@@ -85,31 +96,20 @@ async function askGeminiFlash(query) {
     }
 
     /* =============================
-       2️⃣ AI → Extract Filters ONLY
+       2️⃣ AI → IMPROVE QUERY (NOT PRODUCTS)
     ============================== */
 
     const prompt = `
-You are an ecommerce query parser.
+You are an ecommerce search assistant.
 
-Convert the user query into structured JSON filters.
+Rewrite the user's shopping query into a clean, keyword-optimized search query.
 
-Return ONLY valid JSON.
+Return ONLY plain text.
 No explanation.
-No markdown.
 
-Format:
-{
-  "gender": null,
-  "category": null,
-  "minPrice": null,
-  "maxPrice": null,
-  "size": null,
-  "sortBy": null
-}
-
-Allowed values:
-gender: "Men", "Women", "Unisex"
-sortBy: "price_low_to_high", "price_high_to_low", "rating", "newest"
+Example:
+Input: "show me something cool for party"
+Output: "party wear outfit"
 
 USER QUERY:
 "${cleanQuery}"
@@ -120,79 +120,54 @@ USER QUERY:
       contents: [{ role: "user", parts: [{ text: prompt }] }],
     });
 
-    let text =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+    let improvedQuery =
+      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+      cleanQuery;
 
-    text = text.replace(/```json|```/g, "").trim();
+    improvedQuery = improvedQuery.replace(/```/g, "").trim();
 
-    let filters = {};
-
-    try {
-      filters = JSON.parse(text);
-    } catch {
-      filters = {};
-    }
+    console.log("Improved Query:", improvedQuery);
 
     /* =============================
-       3️⃣ BUILD MONGO QUERY
+       3️⃣ HYBRID SEARCH (NO EMPTY ARRAY ISSUE)
     ============================== */
 
-    const mongoQuery = {};
-
-    // 🔥 TEXT SEARCH (Main powerful search)
-    mongoQuery.$text = { $search: cleanQuery };
-
-    // 🔥 Gender
-    if (filters.gender) {
-      mongoQuery.gender = filters.gender;
-    }
-
-    // 🔥 Category (extra filter if AI extracted)
-    if (filters.category) {
-      mongoQuery.category = { $regex: filters.category, $options: "i" };
-    }
-
-    // 🔥 Size
-    if (filters.size) {
-      mongoQuery.size = filters.size;
-    }
-
-    // 🔥 Price
-    if (filters.minPrice || filters.maxPrice) {
-      mongoQuery.price = {};
-      if (filters.minPrice)
-        mongoQuery.price.$gte = Number(filters.minPrice);
-      if (filters.maxPrice)
-        mongoQuery.price.$lte = Number(filters.maxPrice);
-    }
-
-    /* =============================
-       4️⃣ SORTING
-    ============================== */
-
-    let sortOption = { score: { $meta: "textScore" } };
-
-    if (filters.sortBy === "price_low_to_high") sortOption = { price: 1 };
-    if (filters.sortBy === "price_high_to_low") sortOption = { price: -1 };
-    if (filters.sortBy === "rating") sortOption = { averageRating: -1 };
-    if (filters.sortBy === "newest") sortOption = { createdAt: -1 };
-
-    /* =============================
-       5️⃣ EXECUTE SEARCH
-    ============================== */
-
-    const products = await ProductModel.find(mongoQuery, {
-      score: { $meta: "textScore" },
-    })
-      .sort(sortOption)
+    // First try text search
+    let products = await ProductModel.find(
+      { $text: { $search: improvedQuery } },
+      { score: { $meta: "textScore" } }
+    )
+      .sort({ score: { $meta: "textScore" } })
       .limit(20);
+
+    // 🔥 Fallback if text search fails
+    if (!products.length) {
+      const keywords = improvedQuery.split(" ");
+
+      products = await ProductModel.find({
+        $or: keywords.map((word) => ({
+          $or: [
+            { name: { $regex: word, $options: "i" } },
+            { description: { $regex: word, $options: "i" } },
+            { category: { $regex: word, $options: "i" } },
+            { tags: { $elemMatch: { $regex: word, $options: "i" } } },
+          ],
+        })),
+      })
+        .sort({ averageRating: -1 })
+        .limit(20);
+    }
+
+    /* =============================
+       4️⃣ FINAL RESPONSE
+    ============================== */
 
     return {
       resultType: "products",
       data: products,
     };
   } catch (err) {
-    console.error("Error:", err.message);
+    console.error("Gemini Error:", err.message);
 
     return {
       resultType: "message",
