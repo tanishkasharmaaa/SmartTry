@@ -1,26 +1,24 @@
 const productModel = require("../model/products");
 const orderModel = require("../model/order");
-const User = require("../model/users");
 const recommendProducts = require("./recommendProducts");
+
+// Helper to safely escape regex special characters
+const escapeRegex = (text) => text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
 
 const handleManual = async ({ query, req }) => {
   const q = query.toLowerCase().trim();
-console.log(q)
+  console.log("Manual Query:", q);
+
   /* ================= SAFE GREETING ================= */
-  if (/^(hello|hi|hey|greetings|good morning|good evening)$/i.test(q))
- {
+  if (/^(hello|hi|hey|greetings|good morning|good evening)$/i.test(q)) {
     return {
       resultType: "message",
-      data: [
-        { type: "message", text: "👋 Hello! How can I assist you today?" },
-      ],
+      data: [{ type: "message", text: "👋 Hello! How can I assist you today?" }],
     };
   }
 
   /* ================= SMARTTRY INTRO ================= */
-  if (
-    /\b(what is smarttry|about smarttry|who are you|what do you do)\b/i.test(q)
-  ) {
+  if (/\b(what is smarttry|about smarttry|who are you|what do you do)\b/i.test(q)) {
     return {
       resultType: "message",
       data: [
@@ -84,159 +82,100 @@ console.log(q)
   if (/\b(unisex|both)\b/i.test(q)) genders.push("Unisex");
 
   /* ================= PRICE ================= */
-let priceFilter = {};
-let sortOption = {};
+  let priceFilter = {};
+  let sortOption = {};
 
-// under / below / less than
-const under = q.match(/(under|below|less than)\s+(\d+)/i);
-if (under) priceFilter.$lte = Number(under[2]);
+  // under / below / less than
+  const under = q.match(/(under|below|less than)\s+(\d+)/i);
+  if (under) priceFilter.$lte = Number(under[2]);
 
-// between 500 and 1000 / between 500 to 1000
-const between = q.match(/between\s+(\d+)\s+(and|to)\s+(\d+)/i);
-if (between) {
-  priceFilter.$gte = Number(between[1]);
-  priceFilter.$lte = Number(between[3]);
-}
-
-// range 500 to 1000
-const range = q.match(/range\s+(\d+)\s+to\s+(\d+)/i);
-if (range) {
-  priceFilter.$gte = Number(range[1]);
-  priceFilter.$lte = Number(range[2]);
-}
-
-// cheapest / expensive
-const isCheapest = /(cheapest|lowest price|budget)/i.test(q);
-const isExpensive = /(most expensive|highest price|premium)/i.test(q);
-
-if (isCheapest) sortOption.price = 1;
-if (isExpensive) sortOption.price = -1;
-
-/* ================= STYLE ================= */
-const styleKeywords = [
-  "baggy",
-  "oversized",
-  "loose",
-  "streetwear",
-  "trending",
-  "trend",
-  "fashion",
-  "style",
-  "modern",
-  "casual",
-];
-
-const hasStyle = styleKeywords.some((k) => q.includes(k));
-const hasPrice =
-  Object.keys(priceFilter).length > 0 || isCheapest || isExpensive;
-
-/* ================= QUERY ================= */
-if (hasStyle || hasPrice) {
-  const filter = {
-    ...(genders.length && { gender: { $in: genders } }),
-    ...(Object.keys(priceFilter).length && { price: priceFilter }),
-  };
-
-  if (hasStyle) {
-    filter.$or = [
-      { tags: { $in: styleKeywords } },
-      { name: { $regex: styleKeywords.join("|"), $options: "i" } },
-      { category: { $regex: /fashion|clothing/i } },
-    ];
+  // between 500 and 1000 / between 500 to 1000
+  const between = q.match(/between\s+(\d+)\s+(and|to)\s+(\d+)/i);
+  if (between) {
+    priceFilter.$gte = Number(between[1]);
+    priceFilter.$lte = Number(between[3]);
   }
 
-  const products = await productModel
-    .find(filter)
-    .sort(sortOption)
-    .limit(20)
-    .lean();
-
-  if (products.length) {
-    return { resultType: "products", data: products };
+  // range 500 to 1000
+  const range = q.match(/range\s+(\d+)\s+to\s+(\d+)/i);
+  if (range) {
+    priceFilter.$gte = Number(range[1]);
+    priceFilter.$lte = Number(range[2]);
   }
 
-  return {
-    resultType: "message",
-    data: [
-      {
-        type: "message",
-        text:
-          "😕 No products found. Try adjusting price, gender, or style.",
-      },
-    ],
-  };
-}
+  // cheapest / expensive
+  const isCheapest = /(cheapest|lowest price|budget)/i.test(q);
+  const isExpensive = /(most expensive|highest price|premium)/i.test(q);
 
+  if (isCheapest) sortOption.price = 1;
+  if (isExpensive) sortOption.price = -1;
 
-  /* ================= BROWSE ================= */
+  /* ================= STYLE ================= */
+  const styleKeywords = [
+    "baggy",
+    "oversized",
+    "loose",
+    "streetwear",
+    "trending",
+    "trend",
+    "fashion",
+    "style",
+    "modern",
+    "casual",
+  ];
 
-  const ignoreWords = [
-  "show",
-  "list",
-  "browse",
-  "find",
-  "see",
-  "for",
-  "under",
-  "below",
-  "between",
-  "to",
-  "and",
-];
+  const hasStyle = styleKeywords.some((k) => q.includes(k));
+  const hasPrice = Object.keys(priceFilter).length > 0 || isCheapest || isExpensive;
 
-const searchKeywords = q
-  .split(" ")
-  .filter(
-    (w) =>
-      w.length > 2 &&
-      !ignoreWords.includes(w)
-  );
+  if (hasStyle || hasPrice) {
+    const filter = {
+      ...(genders.length && { gender: { $in: genders } }),
+      ...(Object.keys(priceFilter).length && { price: priceFilter }),
+    };
 
- if (/\b(show|list|browse|find|see)\b/i.test(q)) {
-  const filter = {
-    ...(genders.length && { gender: { $in: genders } }),
-    ...(Object.keys(priceFilter).length && { price: priceFilter }),
-    ...(searchKeywords.length && {
-      $or: [
-        { name: { $regex: searchKeywords.join("|"), $options: "i" } },
-        { tags: { $regex: searchKeywords.join("|"), $options: "i" } },
-        { category: { $regex: searchKeywords.join("|"), $options: "i" } },
+    if (hasStyle) {
+      filter.$or = [
+        { tags: { $in: styleKeywords } },
+        { name: { $regex: styleKeywords.join("|"), $options: "i" } },
+        { category: { $regex: /fashion|clothing/i } },
+      ];
+    }
+
+    const products = await productModel
+      .find(filter)
+      .sort(sortOption)
+      .limit(20)
+      .lean();
+
+    if (products.length) {
+      return { resultType: "products", data: products };
+    }
+
+    return {
+      resultType: "message",
+      data: [
+        {
+          type: "message",
+          text: "😕 No products found. Try adjusting price, gender, or style.",
+        },
       ],
-    }),
-  };
-
-  const products = await productModel.find(filter).limit(20).lean();
-
-  if (products.length) {
-    return { resultType: "products", data: products };
+    };
   }
 
-  return {
-    resultType: "message",
-    data: [
-      {
-        type: "message",
-        text: `😕 No products found matching "${query}". Try different keywords or filters.`,
-      },
-    ],
-  };
-}
-
-  /* ================= RECOMMEND ================= */
+  /* ================= RECOMMENDATIONS ================= */
   if (/\b(recommend|suggest|best|popular|trending|recommendations|recommendation)\b/i.test(q)) {
-    if (req.userId) {
+    if (req?.userId) {
       const results = await recommendProducts({
         userId: req.userId,
         limit: 10,
       });
-      console.log(results,"------recommend results------")
 
       if (results.length) {
         return { resultType: "products", data: results };
       }
     }
 
-    // fallback trending products
+    // Fallback to top-rated trending products
     const fallback = await productModel
       .find({})
       .sort({ rating: -1 })
@@ -248,25 +187,35 @@ const searchKeywords = q
     }
   }
 
-  /* ================= KEYWORD SEARCH ================= */
-  const greetingWords = ["hello","hi","hey","greetings"];
-  const keywords = q.split(" ").filter(w => w.length > 2 && !greetingWords.includes(w));
+  /* ================= GENERAL KEYWORD SEARCH ================= */
+  const ignoreWords = [
+    "show", "list", "browse", "find", "see", "for", "under", "below",
+    "between", "to", "and", "hello", "hi", "hey", "greetings", "me", "products"
+  ];
 
-  // Build filter
+  const searchKeywords = q
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/gi, ""))
+    .filter((w) => w.length > 2 && !ignoreWords.includes(w));
+
   const filter = {};
   if (genders.length) filter.gender = { $in: genders };
   if (Object.keys(priceFilter).length) filter.price = priceFilter;
-  if (keywords.length) {
+
+  if (searchKeywords.length) {
+    const regexPattern = searchKeywords.map(escapeRegex).join("|");
     filter.$or = [
-      { name: { $regex: keywords.join("|"), $options: "i" } },
-      { tags: { $regex: keywords.join("|"), $options: "i" } },
-      { category: { $regex: keywords.join("|"), $options: "i" } },
+      { name: { $regex: regexPattern, $options: "i" } },
+      { tags: { $regex: regexPattern, $options: "i" } },
+      { category: { $regex: regexPattern, $options: "i" } },
     ];
   }
 
   const products = await productModel.find(filter).limit(20).lean();
-  if (products.length) return { resultType: "products", data: products };
 
+  if (products.length) {
+    return { resultType: "products", data: products };
+  }
 
   /* ================= HARD STOP ================= */
   return null;
