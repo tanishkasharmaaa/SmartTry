@@ -172,7 +172,7 @@ const deleteProducts = async (req, res) => {
 };
 
 /* ======================================================
-   FETCH PRODUCTS (WITH TAG FILTER)
+   FETCH PRODUCTS (WITH TAG FILTER & SAFE REDIS FALLBACK)
 ====================================================== */
 const fetchProducts = async (req, res) => {
   try {
@@ -225,7 +225,16 @@ const fetchProducts = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
     const cacheKey = `products:${JSON.stringify(req.query)}`;
 
-    const cachedData = await redis.get(cacheKey);
+    // 🛡️ Safe Redis Get (Bypasses cache if Redis is down)
+    let cachedData = null;
+    try {
+      if (redis.status === "ready") {
+        cachedData = await redis.get(cacheKey);
+      }
+    } catch (redisErr) {
+      console.warn("⚠️ Redis get skipped:", redisErr.message);
+    }
+
     if (cachedData) {
       return res.status(200).json({
         ...JSON.parse(cachedData),
@@ -252,11 +261,18 @@ const fetchProducts = async (req, res) => {
       limit: Number(limit),
     };
 
-    await redis.set(cacheKey, JSON.stringify(response), "EX", 600);
+    // 🛡️ Safe Redis Set (Bypasses cache setting if Redis is down)
+    try {
+      if (redis.status === "ready") {
+        await redis.set(cacheKey, JSON.stringify(response), "EX", 600);
+      }
+    } catch (redisErr) {
+      console.warn("⚠️ Redis set skipped:", redisErr.message);
+    }
 
     res.status(200).json(response);
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error fetching products:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
