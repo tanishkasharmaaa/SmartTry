@@ -1,12 +1,11 @@
 const productModel = require("../model/products");
 const handleManual = require("./manualHandlers");
 const askGeminiFlash = require("./askGeminiFlash");
-const WebSocket = require("ws"); // ✅ ADDED: proper websocket constant
+const WebSocket = require("ws");
 
 require("dotenv").config();
 
 function send(ws, res, resultType, data) {
-  // ✅ UPDATED: use WebSocket.OPEN instead of 1
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "aiMessage", resultType, data }));
     ws.send(JSON.stringify({ type: "aiEnd" }));
@@ -21,17 +20,13 @@ const askAI = async (req, res, ws = null, context = {}) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ message: "Query required" });
 
-    /* ================= CONTEXT PERSISTENCE (SAFE ADDITION) ================= */
-    // ✅ ADDED: persist context per websocket session
+    /* ================= CONTEXT PERSISTENCE ================= */
     if (ws) {
       ws.context = ws.context || {};
       context = ws.context;
     }
 
-    /* ================= FETCH DATA ================= */
-    const categories = await productModel.distinct("category");
-
-    /* ================= UPDATE CONTEXT ================= */
+    /* ================= UPDATE CONTEXT HISTORY ================= */
     if (/for men|men/i.test(query)) context.gender = "Men";
     else if (/for women|women/i.test(query)) context.gender = "Women";
     else if (/for both/i.test(query)) context.gender = "Unisex";
@@ -43,9 +38,10 @@ const askAI = async (req, res, ws = null, context = {}) => {
     context.history = context.history || [];
 
     /* ================= AI FIRST ================= */
-    let aiResult = await askGeminiFlash(query, [], categories, context);
+    // ✅ FIX: Pass query directly to askGeminiFlash to match function signature
+    let aiResult = await askGeminiFlash(query);
 
-    // ✅ If AI fails → fallback to manual
+    // ✅ If AI fails or returns empty response → fallback to manual handler
     if (!aiResult) {
       aiResult = await handleManual({ query, req });
     }
@@ -61,7 +57,7 @@ const askAI = async (req, res, ws = null, context = {}) => {
             : aiResult.data.map((p) => p.name).join(", "),
       });
 
-      // ✅ ADDED: prevent infinite history growth
+      // Prevent memory leaks / infinite context growth
       if (context.history.length > 10) {
         context.history.shift();
       }
@@ -85,7 +81,6 @@ const askAI = async (req, res, ws = null, context = {}) => {
       ai: fallback.map((d) => d.text).join("\n"),
     });
 
-    // ✅ ADDED: history cap here too
     if (context.history.length > 10) {
       context.history.shift();
     }

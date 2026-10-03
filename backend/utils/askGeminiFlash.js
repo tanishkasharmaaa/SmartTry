@@ -19,7 +19,7 @@ const extractOrderId = (q) => {
 };
 
 const isShoppingIntent = (q) =>
-  /(show|find|buy|shop|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|casual|party|men|women|unisex)/i.test(
+  /(show|find|buy|shop|dress|shirt|hoodie|t-shirt|trousers|jeans|top|outfit|casual|party|men|women|unisex|girls|boys|kids)/i.test(
     q
   );
 
@@ -95,21 +95,30 @@ async function askGeminiFlash(query) {
       };
     }
 
-    /* =============================
-       2️⃣ AI → IMPROVE QUERY (NOT PRODUCTS)
-    ============================== */
+    /* =========================================
+       2️⃣ AI → STRUCTURED ENTITY & KEYWORD EXTRACTION
+    ========================================= */
 
     const prompt = `
-You are an ecommerce search assistant.
+You are an e-commerce search assistant.
+Extract search keywords, price limits, gender/demographics, and categories from the user query.
 
-Rewrite the user's shopping query into a clean, keyword-optimized search query.
+Return ONLY a valid JSON object matching this schema:
+{
+  "searchKeywords": "string of clean product terms without price or filler words",
+  "maxPrice": number or null,
+  "gender": "Men" | "Women" | "Unisex" | "Girls" | "Boys" | null,
+  "category": "string or null"
+}
 
-Return ONLY plain text.
-No explanation.
-
-Example:
-Input: "show me something cool for party"
-Output: "party wear outfit"
+Example Input: "show me dresses under 2000 for girls"
+Example Output:
+{
+  "searchKeywords": "dresses",
+  "maxPrice": 2000,
+  "gender": "Girls",
+  "category": "dresses"
+}
 
 USER QUERY:
 "${cleanQuery}"
@@ -118,29 +127,76 @@ USER QUERY:
     const response = await genAI.models.generateContent({
       model: "models/gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: { responseMimeType: "application/json" },
     });
 
-    let improvedQuery =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      cleanQuery;
+    const rawText = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let extractedData = {};
 
-    improvedQuery = improvedQuery.replace(/```/g, "").trim();
+    try {
+      extractedData = JSON.parse(rawText || "{}");
+    } catch (parseErr) {
+      console.error("JSON parsing error:", parseErr);
+      extractedData = { searchKeywords: cleanQuery };
+    }
 
-    console.log("Improved Query:", improvedQuery);
+    console.log("Extracted Criteria:", extractedData);
 
-    /* =============================
-       3️⃣ HYBRID SEARCH (NO EMPTY ARRAY ISSUE)
-    ============================== */
+    /* =========================================
+       3️⃣ DYNAMIC MONGODB QUERY BUILDER
+    ========================================= */
 
-    // First try text search
-    let products = await ProductModel.find(
-      { $text: { $search: improvedQuery } },
-      { score: { $meta: "textScore" } }
-    )
-      .sort({ score: { $meta: "textScore" } })
-      .limit(20);
+    const dbQuery = {};
 
-    // 🔥 Fallback if text search fails
+    // 1. Apply $text search for product search keywords
+    if (extractedData.searchKeywords) {
+      dbQuery.$text = { $search: extractedData.searchKeywords };
+    }
+
+    // 2. Apply price condition if extracted
+    if (extractedData.maxPrice) {
+      dbQuery.price = { $lte: Number(extractedData.maxPrice) };
+    }
+
+    // 3. Apply gender/demographic filter if extracted
+    if (extractedData.gender) {
+      dbQuery.gender = new RegExp(`^${extractedData.gender}$`, "i");
+    }
+
+    // 4. Apply category filter if extracted
+    if (extractedData.category) {
+      dbQuery.category = new RegExp(extractedData.category, "i");
+    }
+
+    /* =========================================
+       4️⃣ DATABASE SEARCH WITH FALLBACK
+    ========================================= */
+
+   /* =========================================
+       4️⃣ DATABASE SEARCH WITH FALLBACK
+    ========================================= */
+
+    let products = [];
+
+    if (Object.keys(dbQuery).length > 0) {
+      const projection = dbQuery.$text ? { score: { $meta: "textScore" } } : {};
+      const sort = dbQuery.$text ? { score: { $meta: "textScore" } } : { createdAt: -1 };
+
+      products = await ProductModel.find(dbQuery, projection)
+        .sort(sort)
+        .limit(20);
+    }
+
+    // Fallback: If strict filtered search yields no results, attempt broader text search
+    if (!products.length && extractedData.searchKeywords) {
+      products = await ProductModel.find(
+        { $text: { $search: extractedData.searchKeywords } },
+        { score: { $meta: "textScore" } }
+      )
+        .sort({ score: { $meta: "textScore" } })
+        .limit(20);
+    }
+
     if (!products.length) {
       return {
         resultType: "message",
@@ -170,8 +226,7 @@ USER QUERY:
       data: [
         {
           type: "message",
-          text:
-            "😔 No products found. Try searching with different keywords.",
+          text: "😔 No products found. Try searching with different keywords.",
         },
       ],
     };
