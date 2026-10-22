@@ -84,7 +84,7 @@ const Login = ({ buttonName, close }) => {
 
     try {
       const response = await fetch(
-        "${import.meta.env.VITE_API_URL}/api/users",
+        `${import.meta.env.VITE_API_URL}/api/users`,
         {
           method: "POST",
           headers: {
@@ -130,7 +130,7 @@ const Login = ({ buttonName, close }) => {
   const handleLogin = async () => {
     try {
       const response = await fetch(
-        "${import.meta.env.VITE_API_URL}/api/login",
+        `${import.meta.env.VITE_API_URL}/api/login`,
         {
           method: "POST",
           headers: {

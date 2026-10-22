@@ -49,15 +49,21 @@ export default function ChatWidget() {
     if (!authenticated) return;
 
     if (!wsRef.current) {
-      let wsUrl = import.meta.env.VITE_WS_URL + "/ws";
+      const baseUrl = import.meta.env.VITE_WS_URL;
 
-      // If local dev, optionally pass a dev token
-      if (import.meta.env.DEV) {
-        const devToken = import.meta.env.VITE_DEV_TOKEN; // store a test token in .env.local
-        if (devToken) wsUrl += `?token=${devToken}`;
-      }
+if (!baseUrl) {
+  console.error("VITE_WS_URL is not configured");
+  return;
+}
 
-      wsRef.current = new WebSocket(wsUrl);
+const url = new URL(baseUrl);
+url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+
+url.pathname = `${url.pathname.replace(/\/+$/, "").replace(/\/ws$/i, "")}/ws`
+  .replace(/\/{2,}/g, "/");
+
+const socket = new WebSocket(url.toString());
+wsRef.current = socket;
 
       wsRef.current.onopen = () => {
         setConnected(true);

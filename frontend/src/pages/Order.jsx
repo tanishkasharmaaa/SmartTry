@@ -16,224 +16,306 @@ import {
   ModalBody,
   Spinner,
   useDisclosure,
-  Input,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import { useState,useEffect,useContext } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../context/authContext";
 
 const MotionBox = motion(Box);
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const Order = () => {
-  /* THEME */
   const bg = useColorModeValue("gray.100", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
-  const border = useColorModeValue("gray.200", "gray.700");
-  const textPrimary = useColorModeValue("gray.900", "gray.100");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
   const textSecondary = useColorModeValue("gray.600", "gray.400");
-
   const buttonBg = useColorModeValue("gray.900", "gray.100");
   const buttonText = useColorModeValue("white", "gray.900");
 
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [paymentMethod, setPaymentMethod] = useState("upi");
-  const paymentProviderMap = {
-    cod: "COD",
-    card: "CREDIT/DEBIT",
-    upi: "UPI",
-  };
   const { authenticated, user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-  const [status, setStatus] = useState("loading");
-  const navigate = useNavigate()
-
-  /* MOCK DATA */
-  const address = JSON.parse(localStorage.getItem("deliveryAddress")) || {
-    name: "Tanishka Sharma",
-    phone: "9XXXXXXXXX",
-    addressLine1: "Main Street",
-    city: "Delhi",
-    state: "Delhi",
-    postalCode: "110001",
-  };
+  // Razorpay handles all online payment methods; do not collect card PIN/CVV here.
+  const [paymentMethod, setPaymentMethod] = useState("razorpay");
   const [step, setStep] = useState("form");
-  // form → pin → processing → success
-
-  const [cardDetails, setCardDetails] = useState({
-    number: "",
-    name: "",
-    expiry: "",
-    cvv: "",
-  });
-console.log(user)
-  const [upiId, setUpiId] = useState("");
-  const [errors, setErrors] = useState({});
-  const [pin, setPin] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const checkoutType = localStorage.getItem("checkoutType");
 
-  const createOrderAPI = async () => {
-    const checkoutType = localStorage.getItem("checkoutType");
+  const address = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("deliveryAddress")) || {
+        name: "",
+        phone: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+      };
+    } catch {
+      return {};
+    }
+  }, []);
 
+  const cartItems = useMemo(() => {
+    try {
+      if (checkoutType === "BUY_NOW") {
+        return JSON.parse(localStorage.getItem("buyNowProduct")) || [];
+      }
+      return JSON.parse(localStorage.getItem("selectedCartItems")) || [];
+    } catch {
+      return [];
+    }
+  }, [checkoutType]);
+
+  const total = cartItems.reduce(
+    (sum, item) => sum + Number(item.priceAtAdd || 0) * Number(item.quantity || 0),
+    0
+  );
+
+  const paymentProviderMap = {
+    cod: "COD",
+    razorpay: "RAZORPAY",
+  };
+
+  const createOrderAPI = async () => {
     let url = "";
     let body = {};
+    const paymentProvider = paymentProviderMap[paymentMethod];
+
+    if (!paymentProvider) {
+      throw new Error("Please select a valid payment method.");
+    }
 
     if (checkoutType === "BUY_NOW") {
-      const buyNow = JSON.parse(localStorage.getItem("buyNowProduct"));
-      console.log(buyNow);
+      const buyNow = JSON.parse(localStorage.getItem("buyNowProduct") || "[]");
+      const productId = buyNow[0]?.product?._id;
 
-      url = `${import.meta.env.VITE_API_URL}/api/order/buy/${
-        buyNow[0]?.product._id
-      }`;
+      if (!productId) {
+        throw new Error("Your Buy Now product is missing. Please return to the product page and try again.");
+      }
+
+      url = `${API_URL}/api/order/buy/${productId}`;
       body = {
         quantity: buyNow[0].quantity,
         size: buyNow[0].size,
-        paymentProvider: paymentProviderMap[paymentMethod] || "UNKNOWN",
+        paymentProvider,
       };
-    }
-
-    if (checkoutType === "CART_ORDER") {
+    } else if (checkoutType === "CART_ORDER") {
       const selectedCartItems = JSON.parse(
-        localStorage.getItem("selectedCartItems")
+        localStorage.getItem("selectedCartItems") || "[]"
       );
-      console.log(selectedCartItems);
-      const cartItemIds = selectedCartItems.map((item) => item._id);
 
-      url = `${
-        import.meta.env.VITE_API_URL
-      }/api/order/buy-through-cart/${user.cartId}`;
-      body = { cartItemIds, paymentProvider: paymentProviderMap[paymentMethod] || "UNKNOWN"};
+      if (!selectedCartItems.length) {
+        throw new Error("No cart items are selected.");
+      }
+      if (!user?.cartId) {
+        throw new Error("Your cart could not be found. Please refresh and try again.");
+      }
+
+      url = `${API_URL}/api/order/buy-through-cart/${user.cartId}`;
+      body = {
+        cartItemIds: selectedCartItems.map((item) => item._id),
+        paymentProvider,
+      };
+    } else {
+      throw new Error("Checkout session not found. Please return to your cart and try again.");
     }
 
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
+    const data = await response.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const error = new Error(data.message || "Order creation failed");
-      error.code = data.code; // 👈 IMPORTANT
+    if (!response.ok) {
+      const error = new Error(data.message || "Order creation failed.");
+      error.code = data.code;
       throw error;
+    }
+
+    if (!data.order?._id) {
+      throw new Error("The backend created a response without an order ID.");
     }
 
     return data.order;
   };
 
-  const cartItems =
-    checkoutType === "BUY_NOW"
-      ? (() => {
-          const buyNow = localStorage.getItem("buyNowProduct");
+  const loadRazorpayScript = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
 
-          return buyNow ? JSON.parse(buyNow) : [];
-        })()
-      : JSON.parse(localStorage.getItem("selectedCartItems")) || [];
+      const existingScript = document.querySelector(
+        'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+      );
 
-  const total = cartItems.reduce(
-    (sum, item) => sum + item.priceAtAdd * item.quantity,
-    0
-  );
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(true), { once: true });
+        existingScript.addEventListener("error", () => resolve(false), { once: true });
+        return;
+      }
 
-  const validateCardForm = () => {
-    const newErrors = {};
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
-    if (cardDetails.number.length !== 16)
-      newErrors.number = "Card number must be 16 digits";
-
-    if (!cardDetails.name) newErrors.name = "Name on card is required";
-
-    if (!/^\d{2}\/\d{2}$/.test(cardDetails.expiry))
-      newErrors.expiry = "Expiry must be in MM/YY format";
-
-    if (cardDetails.cvv.length !== 3) newErrors.cvv = "CVV must be 3 digits";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateUpi = () => {
-    if (!upiId || !upiId.includes("@")) {
-      setErrors({ upi: "Enter a valid UPI ID" });
-      return false;
+  const openRazorpayCheckout = async (smartTryOrder) => {
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      throw new Error("Razorpay Checkout could not load. Check your internet connection and try again.");
     }
-    setErrors({});
-    return true;
-  };
 
-  /* PAYMENT FLOW */
-  const handlePayment = async () => {
-    onOpen();
+    // Endpoint 1: create the Razorpay order on the backend.
+    const createResponse = await fetch(`${API_URL}/api/payment/create-order`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId: smartTryOrder._id }),
+    });
 
-    try {
-      // ================= COD =================
-      if (paymentMethod === "cod") {
-        setStep("processing");
-        await createOrderAPI();
-        setTimeout(() => setStep("success"), 1500);
-        return;
-      }
-
-      // ================= CARD =================
-      if (paymentMethod === "card") {
-        if (!validateCardForm()) return;
-        setStep("pin");
-        return;
-      }
-
-      // ================= UPI =================
-      if (paymentMethod === "upi") {
-        if (!validateUpi()) return;
-
-        setStep("processing");
-        await createOrderAPI();
-        setTimeout(() => setStep("success"), 1500);
-        return;
-      }
-    } catch (err) {
-      // 🔐 AUTH ERROR HANDLING (CORRECT WAY)
-      if (err.code === "TOKEN_EXPIRED" || err.code === "NO_TOKEN") {
-        alert("Session expired. Please login again.");
-
-        localStorage.clear();
-        window.location.href = "/login";
-        return;
-      }
-
-      if (err.code === "INVALID_TOKEN") {
-        alert("Authentication error. Please login again.");
-        localStorage.clear();
-        window.location.href = "/login";
-        return;
-      }
-
-      alert(err.message || "Payment failed");
-      onClose();
+    const paymentOrder = await createResponse.json().catch(() => ({}));
+    if (!createResponse.ok) {
+      throw new Error(paymentOrder.message || "Could not create the Razorpay payment order.");
     }
+
+    if (!paymentOrder.keyId || !paymentOrder.razorpayOrderId || !paymentOrder.amount) {
+      throw new Error("The payment API returned incomplete Razorpay order details.");
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        callback(value);
+      };
+
+      const checkout = new window.Razorpay({
+        key: paymentOrder.keyId,
+        amount: paymentOrder.amount,
+        currency: paymentOrder.currency || "INR",
+        name: "SmartTry",
+        description: "Payment for your SmartTry order",
+        order_id: paymentOrder.razorpayOrderId,
+        handler: async (razorpayResponse) => {
+          try {
+            // Endpoint 2: backend verifies the signature before marking the order paid.
+            const verifyResponse = await fetch(`${API_URL}/api/payment/verify`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: smartTryOrder._id,
+                razorpay_order_id: razorpayResponse.razorpay_order_id,
+                razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                razorpay_signature: razorpayResponse.razorpay_signature,
+              }),
+            });
+
+            const result = await verifyResponse.json().catch(() => ({}));
+            if (!verifyResponse.ok) {
+              throw new Error(result.message || "Payment verification failed.");
+            }
+
+            finish(resolve, result);
+          } catch (error) {
+            finish(reject, error);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            finish(reject, new Error("Checkout was closed. Your order may still be pending; check your orders before trying again."));
+          },
+        },
+      });
+
+      checkout.on("payment.failed", (response) => {
+        finish(
+          reject,
+          new Error(response.error?.description || "Razorpay reported that the payment failed.")
+        );
+      });
+
+      checkout.open();
+    });
   };
 
-  if (step === "success") {
+  const clearCheckoutStorage = () => {
     localStorage.removeItem("checkoutType");
     localStorage.removeItem("buyNowProduct");
     localStorage.removeItem("selectedCartItems");
     localStorage.removeItem("selectedCartItemIds");
-  }
+  };
+
+  const handlePayment = async () => {
+    if (isSubmitting) return;
+
+    if (!authenticated) {
+      navigate("/login");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (paymentMethod === "cod") {
+        onOpen();
+        setStep("processing");
+        await createOrderAPI();
+        setStep("success");
+        clearCheckoutStorage();
+        return;
+      }
+
+      if (paymentMethod === "razorpay") {
+        // First create the SmartTry order, then create/pay its Razorpay order.
+        const smartTryOrder = await createOrderAPI();
+        await openRazorpayCheckout(smartTryOrder);
+
+        clearCheckoutStorage();
+        setStep("success");
+        onOpen();
+      }
+    } catch (error) {
+      if (
+        error.code === "TOKEN_EXPIRED" ||
+        error.code === "NO_TOKEN" ||
+        error.code === "INVALID_TOKEN"
+      ) {
+        alert("Your session has expired. Please log in again.");
+        navigate("/login");
+        return;
+      }
+
+      alert(error.message || "Payment could not be completed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   useEffect(() => {
-  if (step === "success") {
+    if (step !== "success") return undefined;
+
     const timer = setTimeout(() => {
       navigate("/", { replace: true });
-    }, 2500); // 2.5s delay for UX
+    }, 2500);
 
     return () => clearTimeout(timer);
-  }
-}, [step, navigate]);
-
+  }, [step, navigate]);
 
   return (
     <Box bg={bg} minH="100vh" py={8}>
@@ -241,40 +323,36 @@ console.log(user)
         <Heading mb={6}>Review & Pay</Heading>
 
         <Stack spacing={6}>
-          {/* ADDRESS */}
-          <Box bg={cardBg} border="1px solid" borderColor={border} p={5}>
-            <Heading size="md" mb={2}>
-              Delivery Address
-            </Heading>
+          <Box bg={cardBg} border="1px solid" borderColor={borderColor} p={5} borderRadius="md">
+            <Heading size="md" mb={2}>Delivery Address</Heading>
             <Text color={textSecondary}>
-              {address.name}, {address.phone}
+              {address.name || "Name not provided"}, {address.phone || "Phone not provided"}
             </Text>
             <Text color={textSecondary}>
-              {address.addressLine1}, {address.city}, {address.state} -{" "}
-              {address.postalCode}
+              {[address.addressLine1, address.addressLine2, address.city, address.state, address.postalCode]
+                .filter(Boolean)
+                .join(", ")}
             </Text>
           </Box>
 
-          {/* ITEMS */}
-          <Box bg={cardBg} border="1px solid" borderColor={border} p={5}>
-            <Heading size="md" mb={4}>
-              Order Items
-            </Heading>
+          <Box bg={cardBg} border="1px solid" borderColor={borderColor} p={5} borderRadius="md">
+            <Heading size="md" mb={4}>Order Items</Heading>
             <Stack spacing={4}>
-              {cartItems.map((item) => (
-                <Flex key={item._id} gap={4}>
-                  <Image src={item?.product?.image} boxSize="70px" />
+              {cartItems.map((item, index) => (
+                <Flex key={item._id || item.product?._id || index} gap={4} align="center">
+                  <Image
+                    src={item?.product?.image}
+                    alt={item?.product?.title || "Product"}
+                    boxSize="70px"
+                    objectFit="cover"
+                  />
                   <Box flex="1">
-                    <Text fontWeight="600">{item?.product?.title}</Text>
-                    <Text fontSize="sm" color={textSecondary}>
-                      Qty: {item?.quantity}
-                    </Text>
-                    <Text fontSize="sm" color={textSecondary}>
-                      Size: {item?.size}
-                    </Text>
+                    <Text fontWeight="600">{item?.product?.title || "Product"}</Text>
+                    <Text fontSize="sm" color={textSecondary}>Qty: {item?.quantity}</Text>
+                    <Text fontSize="sm" color={textSecondary}>Size: {item?.size || "Free Size"}</Text>
                   </Box>
                   <Text fontWeight="600">
-                    ₹{item.priceAtAdd * item.quantity}
+                    ₹{Number(item.priceAtAdd || 0) * Number(item.quantity || 0)}
                   </Text>
                 </Flex>
               ))}
@@ -283,280 +361,79 @@ console.log(user)
                 <Text>Total</Text>
                 <Text>₹{total}</Text>
               </Flex>
+              <Text fontSize="xs" color={textSecondary}>
+                Final payment amount is calculated and validated by the server.
+              </Text>
             </Stack>
           </Box>
 
-          {/* PAYMENT */}
-          <Box bg={cardBg} border="1px solid" borderColor={border} p={5}>
-            <Heading size="md" mb={4}>
-              Payment Method
-            </Heading>
-
+          <Box bg={cardBg} border="1px solid" borderColor={borderColor} p={5} borderRadius="md">
+            <Heading size="md" mb={4}>Payment Method</Heading>
             <RadioGroup value={paymentMethod} onChange={setPaymentMethod}>
               <Stack spacing={3}>
-                <Radio value="upi">UPI</Radio>
-                <Radio value="card">Credit / Debit Card</Radio>
+                <Radio value="razorpay">Pay Online with Razorpay (UPI, Credit/Debit Card and available methods)</Radio>
                 <Radio value="cod">Cash on Delivery</Radio>
               </Stack>
             </RadioGroup>
-
-            {/* CARD ICONS */}
-            {paymentMethod === "card" && (
-              <Flex mt={4} gap={4}>
-                <Image
-                  src="https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png"
-                  h="22px"
-                />
-                <Image
-                  src="https://upload.wikimedia.org/wikipedia/commons/0/04/Mastercard-logo.png"
-                  h="22px"
-                />
-                <Image
-                  src="https://upload.wikimedia.org/wikipedia/commons/d/d1/RuPay.svg"
-                  h="25px"
-                />
-                <Image
-                  src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg"
-                  h="22px"
-                />
-              </Flex>
-            )}
-
-            {/* UPI ICONS */}
-            {paymentMethod === "upi" && (
-              <Flex mt={4} gap={4}>
-                <Box h={"25px"} display={"flex"} alignItems={"center"}>
-                  <Image
-                    src="https://upload.wikimedia.org/wikipedia/commons/f/f2/Google_Pay_Logo.svg"
-                    h="32px"
-                  />
-                </Box>
-                <Box h={"25px"} display={"flex"} alignItems={"center"}>
-                  <Image
-                    src="https://upload.wikimedia.org/wikipedia/commons/7/71/PhonePe_Logo.svg"
-                    h="42px"
-                  />
-                </Box>
-                <Box h={"25px"} display={"flex"} alignItems={"center"}>
-                  <Image
-                    src="https://img.icons8.com/?size=96&id=68067&format=png"
-                    h="62px"
-                  />
-                </Box>
-              </Flex>
-            )}
           </Box>
 
-          {/* PAY BUTTON */}
           <Button
             bg={buttonBg}
             color={buttonText}
             size="lg"
             w="100%"
             onClick={handlePayment}
+            isLoading={isSubmitting}
+            loadingText="Processing"
+            isDisabled={!cartItems.length || total <= 0}
           >
-            Pay ₹{total}
+            {paymentMethod === "cod" ? `Place Order · ₹${total}` : `Pay ₹${total}`}
           </Button>
         </Stack>
       </Box>
 
-      {/* PAYMENT MODAL */}
-      <Modal isOpen={isOpen} onClose={onClose} isCentered>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        isCentered
+        closeOnOverlayClick={step !== "processing"}
+        closeOnEsc={step !== "processing"}
+      >
         <ModalOverlay />
         <ModalContent bg={cardBg}>
           <ModalBody py={10} textAlign="center">
-            {/* CARD PAYMENT */}
-            {paymentMethod === "card" && step === "form" && (
-              <Stack spacing={4}>
-                <Heading size="md">Enter Card Details</Heading>
-
-                <Input
-                  placeholder="Card Number"
-                  maxLength={16}
-                  value={cardDetails.number}
-                  onChange={(e) =>
-                    setCardDetails({ ...cardDetails, number: e.target.value })
-                  }
-                />
-                {errors.number && (
-                  <Text fontSize="xs" color="red.400">
-                    {errors.number}
-                  </Text>
-                )}
-
-                <Input
-                  placeholder="Name on Card"
-                  value={cardDetails.name}
-                  onChange={(e) =>
-                    setCardDetails({ ...cardDetails, name: e.target.value })
-                  }
-                />
-                {errors.name && (
-                  <Text fontSize="xs" color="red.400">
-                    {errors.name}
-                  </Text>
-                )}
-
-                <Flex gap={3}>
-                  <Input
-                    placeholder="MM/YY"
-                    value={cardDetails.expiry}
-                    onChange={(e) =>
-                      setCardDetails({ ...cardDetails, expiry: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="CVV"
-                    type="password"
-                    maxLength={3}
-                    value={cardDetails.cvv}
-                    onChange={(e) =>
-                      setCardDetails({ ...cardDetails, cvv: e.target.value })
-                    }
-                  />
-                  {errors.expiry && (
-                    <Text fontSize="xs" color="red.400">
-                      {errors.expiry}
-                    </Text>
-                  )}
-                  {errors.cvv && (
-                    <Text fontSize="xs" color="red.400">
-                      {errors.cvv}
-                    </Text>
-                  )}
-                </Flex>
-
-                <Button
-                  bg={buttonBg}
-                  color={buttonText}
-                  onClick={() => {
-                    if (validateCardForm()) {
-                      setStep("pin");
-                      setErrors({});
-                    }
-                  }}
-                >
-                  Continue
-                </Button>
-              </Stack>
-            )}
-
-            {/* CARD PIN */}
-            {paymentMethod === "card" && step === "pin" && (
-              <MotionBox
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <Heading size="md">Enter Secure PIN</Heading>
-                <Input
-                  mt={4}
-                  type="password"
-                  placeholder="****"
-                  maxLength={4}
-                  textAlign="center"
-                  fontSize="xl"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                />
-
-                <Button
-                  mt={4}
-                  bg={buttonBg}
-                  color={buttonText}
-                  onClick={async () => {
-                    if (pin.length !== 4) {
-                      setErrors({ pin: "PIN must be 4 digits" });
-                      return;
-                    }
-
-                    setStep("processing");
-
-                    try {
-                      await createOrderAPI();
-                      setTimeout(() => setStep("success"), 1800);
-                    } catch (err) {
-                      setStep("form");
-                      alert(err.message);
-                    }
-                  }}
-                >
-                  Pay ₹{total}
-                </Button>
-              </MotionBox>
-            )}
-
-            {/* UPI */}
-            {paymentMethod === "upi" && step === "form" && (
-              <Stack spacing={4}>
-                <Heading size="md">UPI Payment</Heading>
-
-                <Input
-                  placeholder="Enter UPI ID (e.g. name@upi)"
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value)}
-                />
-
-                <Button
-                  mt={4}
-                  bg={buttonBg}
-                  color={buttonText}
-                  onClick={async () => {
-                    if (!validateUpi()) return;
-
-                    setStep("processing");
-
-                    try {
-                      await createOrderAPI();
-                      setTimeout(() => setStep("success"), 1800);
-                    } catch (err) {
-                      setStep("form");
-                      alert(err.message);
-                    }
-                  }}
-                >
-                  Pay ₹{total}
-                </Button>
-
-                {errors.pin && (
-                  <Text fontSize="xs" color="red.400" mt={1}>
-                    {errors.pin}
-                  </Text>
-                )}
-
-                <Text fontSize="sm" color={textSecondary}>
-                  You’ll receive a payment request on your UPI app
-                </Text>
-              </Stack>
-            )}
-
-            {/* PROCESSING */}
             {step === "processing" && (
               <>
                 <Spinner size="xl" />
-                <Text mt={4}>Waiting for payment confirmation…</Text>
+                <Text mt={4}>Placing your order…</Text>
               </>
             )}
 
-            {/* SUCCESS */}
             {step === "success" && (
               <MotionBox
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.6 }}
+                transition={{ duration: 0.4 }}
               >
                 <Image
                   src="https://cdn-icons-png.flaticon.com/512/845/845646.png"
+                  alt="Success"
                   boxSize="90px"
                   mx="auto"
                   mb={4}
                 />
-                <Heading size="md">Payment Successful 🎉</Heading>
+                <Heading size="md">
+                  {paymentMethod === "cod" ? "Order Placed Successfully" : "Payment Successful"}
+                </Heading>
                 <Text mt={2} color={textSecondary}>
-                  Thank you for shopping with us.
+                  Thank you for shopping with SmartTry.
                 </Text>
                 <Text fontSize="sm" mt={1} color={textSecondary}>
-                  Order placed successfully.
+                  Redirecting you shortly…
                 </Text>
+                <Button mt={5} onClick={() => navigate("/", { replace: true })}>
+                  Continue Shopping
+                </Button>
               </MotionBox>
             )}
           </ModalBody>
