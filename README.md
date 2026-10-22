@@ -77,7 +77,7 @@ Handles predictable requests without unnecessary AI calls:
 
 Explore the architecture, request flow, and implementation details of SmartTry AI:
 
-- **System Design:** [[Add your SmartTry system design document link here]](https://docs.google.com/document/d/1AgxbHk5If4oOTiCEpYpi0cnpV86YpBH7bP2C_6FBYTU/edit?usp=sharing)
+- **System Design:** [[Explore Smarttry SDD]](https://docs.google.com/document/d/1AgxbHk5If4oOTiCEpYpi0cnpV86YpBH7bP2C_6FBYTU/edit?usp=sharing)
 
 These documents can cover the application architecture, AI-powered search flow, WebSocket communication, caching strategy, payment workflow, and database integration.
 
