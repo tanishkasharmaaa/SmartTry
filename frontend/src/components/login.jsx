@@ -126,7 +126,7 @@ const Login = ({ buttonName, close }) => {
     }
   };
 
-  // ---------------- LOGIN ----------------
+  // ---------------- LOGIN -------------------
   const handleLogin = async () => {
     try {
       const response = await fetch(
