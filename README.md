@@ -226,6 +226,7 @@ npm run dev
     <img src="/frontend/public/9.png" width="200" alt="Mobile Chat" />
     <img src="/frontend/public/10.png" width="200" alt="Mobile Order" />
     <img src="/frontend/public/11.png" width="200" alt="Mobile Order" />
+    <img src="/frontend/public/13.png" width="200" alt="Mobile Order Payment" />
   </div>
 </p>
 
