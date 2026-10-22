@@ -95,7 +95,7 @@ const createOrderFromCart = async (req, res) => {
           userId,
           items: orderItems,
           totalAmount,
-          paymentStatus: paymentProvider === "COD" ? "Pending" : "Paid",
+          paymentStatus: "Pending",
           paymentProvider,
           orderStatus: "Processing",
           notifiedStatus: ["Processing"],
@@ -154,6 +154,7 @@ const createOrderFromCart = async (req, res) => {
 ------------------------------------------------------ */
 const createOrder = async (req, res) => {
   try {
+    console.log("Create Order Request Body:", req.body); // ✅ Debugging line
     const userId = req.user.userId;
     const userEmail = req.user.email;
     const userName = req.user.name || "Customer";
@@ -207,7 +208,7 @@ const createOrder = async (req, res) => {
         },
       ],
       totalAmount: product.price * quantity,
-      paymentStatus: paymentProvider === "COD" ? "Pending" : "Paid",
+      paymentStatus: "Pending",
       paymentProvider,
       orderStatus: "Processing",
       notifiedStatus: ["Processing"],

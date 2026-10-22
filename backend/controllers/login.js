@@ -6,18 +6,19 @@ const generateToken = require('../utils/generateToken');
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+console.log("Login Request Body:", req.body); // ✅ Debugging line
     const user = await userModel.findOne({ email });
-    if (!user) {
+    console.log("Login User Found:", user); // ✅ Debugging line
+    if (!user || !user.email) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    const isPasswordMatched = await bcrypt.compare(password, user.password);
+    const isPasswordMatched = bcrypt.compare(password, user.password);
     if (!isPasswordMatched) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    const token = generateToken(
+    const token = await generateToken(
       user.name,
       user.email,
       user._id,
@@ -28,7 +29,7 @@ const login = async (req, res) => {
     // Remove password before sending user data
     const userData = user.toObject();
     delete userData.password;
-
+    console.log("User Data to be sent:", userData, "Token:", token);
     // Set token in secure cookies
     res.cookie("token", token, {
       httpOnly: true,       // JS cannot access it → secure

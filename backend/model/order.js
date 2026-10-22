@@ -39,8 +39,14 @@ const orderSchema = new mongoose.Schema({
   placedAt: { type: Date, default: Date.now },
   deliveredAt: { type: Date },
 
-  paymentProvider: { type: String, enum: ["COD","UPI","CREDIT/DEBIT"], default: "COD" },
+ paymentProvider: {
+  type: String,
+  enum: ["COD", "UPI", "CREDIT/DEBIT", "RAZORPAY"],
+  default: "COD"
+},
   paymentId: { type: String },
+razorpayOrderId: { type: String },
+razorpaySignature: { type: String },
 
   // ✅ Add shortId for easy 8-char lookup
   shortId: { type: String, unique: true, index: true },

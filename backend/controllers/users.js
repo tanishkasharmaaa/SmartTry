@@ -9,10 +9,11 @@ const jwt = require("jsonwebtoken");
 // ============================
 const createUser = async (req, res) => {
   const body = req.body;
-
+console.log("Create User Request Body:", body); // ✅ Debugging line
   try {
     // CHECK IF USER EXISTS
     const checkUser = await userModel.findOne({ email: body.email });
+    console.log("Check User:", checkUser); // ✅ Debugging line
     if (checkUser) {
       return res.status(400).json({ message: "User already exists" });
     }
@@ -81,7 +82,7 @@ const createUser = async (req, res) => {
       subject: "Welcome to SmartTry! 🎉",
       username: user.name,
     });
-
+    console.log(`✅ Signup email queued for ${user.email}`);
     res.status(201).json({
       message: "User created successfully",
       user: userData,

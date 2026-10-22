@@ -16,9 +16,10 @@ const getToken = (req) => {
 };
 
 const authMiddleware = (req, res, next) => {
+  console.log("Auth Middleware: Checking for token in request", req.headers);
   try {
     const token = getToken(req);
-
+  
     if (!token) {
       console.warn("Auth Middleware: No token found in request");
       return res.status(401).json({
@@ -26,12 +27,12 @@ const authMiddleware = (req, res, next) => {
         code: "NO_TOKEN",
       });
     }
-console.log(token)
+
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     } catch (err) {
-      console.error("JWT Verify Error:", err.name, err.message);
+     
 
       if (err.name === "TokenExpiredError") {
         return res.status(401).json({
@@ -56,6 +57,7 @@ console.log(token)
 };
 
 const sellerMiddleware = (req, res, next) => {
+  console.log("Seller Middleware: Checking for seller access",req);
   try {
     const token = getToken(req);
 
@@ -86,7 +88,7 @@ const sellerMiddleware = (req, res, next) => {
         code: "TOKEN_EXPIRED",
       });
     }
-
+   
     return res.status(401).json({
       message: "Invalid authentication token",
       code: "INVALID_TOKEN",

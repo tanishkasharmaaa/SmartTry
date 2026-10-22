@@ -8,6 +8,8 @@ const cookieParser = require("cookie-parser");
 const { v4: uuid4 } = require("uuid");
 const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
+const productRouter = require("./routes/products.route");
+const paymentRouter = require("./routes/payment.route");
 
 const connectDb = require("./config/db");
 require("./config/passportSetup");
@@ -56,10 +58,11 @@ app.get("/", (req, res) => {
   `);
 });
 
+
 app.use("/auth", require("./routes/auth.route"));
 app.use("/api/users", require("./routes/users.route"));
 app.use("/api/login", require("./routes/login.route"));
-app.use("/api/products", require("./routes/products.route"));
+app.use("/api/products",productRouter);
 app.use("/api/stock", require("./routes/stock.route"));
 app.use("/api/reviews", require("./routes/reviews.route"));
 app.use("/api/cart", require("./routes/cart.route"));
@@ -67,10 +70,14 @@ app.use("/api/order", require("./routes/order.route"));
 app.use("/api/rules", require("./routes/rules.route"));
 app.use("/api/askAI", require("./routes/askAI.route"));
 app.use("/api/recommendations", require("./routes/recommendations.route"));
+app.use("/api/payment", paymentRouter);
 
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 // ---------------------------------- START SERVER ----------------------------------
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ;
 
 const server = app.listen(PORT, async () => {
   try {
