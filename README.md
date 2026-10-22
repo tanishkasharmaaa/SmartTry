@@ -290,7 +290,7 @@ npm run dev
 
 ---
 
-##🎯 Key Engineering Highlights
+## 🎯 Key Engineering Highlights
 
 * Hybrid rule-based and AI-powered product discovery
 
