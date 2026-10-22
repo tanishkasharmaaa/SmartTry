@@ -290,6 +290,22 @@ npm run dev
 
 ---
 
+🎯 Key Engineering Highlights
+
+Hybrid rule-based and AI-powered product discovery
+
+Database-grounded AI recommendations
+
+Real-time communication using WebSockets
+
+Redis caching to improve response performance
+
+Payment processing with Razorpay
+
+Dockerized backend for consistent deployment
+
+---
+
 ## ✨ Why SmartTry?
 
 ✔ No fake AI answers
