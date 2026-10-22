@@ -261,7 +261,7 @@ npm run dev
     <img src="/frontend/public/9.png" width="180" alt="Mobile Chat" />
     <img src="/frontend/public/10.png" width="180" alt="Mobile Order" />
     <img src="/frontend/public/11.png" width="180" alt="Mobile Order" />
-    <img src="/frontend/public/13.png" width="180" alt="Mobile Order Payment" />
+    <img src="/frontend/public/13.png" width="180" height="90%" alt="Mobile Order Payment" />
   </div>
 </p>
 
