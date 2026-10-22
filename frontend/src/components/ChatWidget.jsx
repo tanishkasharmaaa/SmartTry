@@ -57,9 +57,12 @@ if (!baseUrl) {
 }
 
 const url = new URL(baseUrl);
+
 url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 
-url.pathname = `${url.pathname.replace(/\/+$/, "").replace(/\/ws$/i, "")}/ws`
+url.pathname = `${url.pathname
+  .replace(/\/+$/, "")
+  .replace(/\/ws$/i, "")}/ws`
   .replace(/\/{2,}/g, "/");
 
 const socket = new WebSocket(url.toString());
