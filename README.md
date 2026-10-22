@@ -202,6 +202,13 @@ SENDGRID_API_KEY=your_sendgrid_api_key
 # Other
 # ===============================
 SID=your_service_id
+
+# ===============================
+# RAZORPAY KEYS
+# ===============================
+
+RAZORPAY_KEY_ID=your_rzp_test_Keyid
+RAZORPAY_KEY_SECRET=your_razorpay_secret
 ```
 
 ---
