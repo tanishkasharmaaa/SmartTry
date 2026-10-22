@@ -257,11 +257,11 @@ npm run dev
 ### 🤖 SmartTry in Mobile Screen
 <p align="center">
   <div style="display: flex; gap: 16px; justify-content: center;">
-    <img src="/frontend/public/8.png" width="200" alt="Mobile Home" />
-    <img src="/frontend/public/9.png" width="200" alt="Mobile Chat" />
-    <img src="/frontend/public/10.png" width="200" alt="Mobile Order" />
-    <img src="/frontend/public/11.png" width="200" alt="Mobile Order" />
-    <img src="/frontend/public/13.png" width="200" alt="Mobile Order Payment" />
+    <img src="/frontend/public/8.png" width="180" alt="Mobile Home" />
+    <img src="/frontend/public/9.png" width="180" alt="Mobile Chat" />
+    <img src="/frontend/public/10.png" width="180" alt="Mobile Order" />
+    <img src="/frontend/public/11.png" width="180" alt="Mobile Order" />
+    <img src="/frontend/public/13.png" width="180" alt="Mobile Order Payment" />
   </div>
 </p>
 
