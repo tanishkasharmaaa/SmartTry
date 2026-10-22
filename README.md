@@ -290,19 +290,19 @@ npm run dev
 
 ---
 
-🎯 Key Engineering Highlights
+##🎯 Key Engineering Highlights
 
-Hybrid rule-based and AI-powered product discovery
+* Hybrid rule-based and AI-powered product discovery
 
-Database-grounded AI recommendations
+* Database-grounded AI recommendations
 
-Real-time communication using WebSockets
+* Real-time communication using WebSockets
 
-Redis caching to improve response performance
+* Redis caching to improve response performance
 
-Payment processing with Razorpay
+* Payment processing with Razorpay
 
-Dockerized backend for consistent deployment
+* Dockerized backend for consistent deployment
 
 ---
 
