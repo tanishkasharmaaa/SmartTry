@@ -216,7 +216,7 @@ npm run dev
 ![Single Product](/frontend/public/3.png)
 ![Checkout](/frontend/public/4.png)
 ![Review and Pay](/frontend/public/5.png)
-![Final Payment](/frontend/public/6.png)
+![Final Payment](/frontend/public/12.png)
 ![Order History](/frontend/public/7.png)
 
 ### 🤖 SmartTry in Mobile Screen
