@@ -1,8 +1,8 @@
 # 🛍️ SM△RTTRY
 
-SmartTry is an **AI-powered ecommerce shopping assistant** that helps users discover products, track orders, and get personalized recommendations through a smart chat interface.
+SmartTry is an **AI-powered e-commerce shopping assistant** that helps users discover products, track orders, and get personalized recommendations through a smart chat interface.
 
-It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, and hallucination-free product suggestions — all using real products from the database.
+It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, and grounded product suggestions using real products from the database.
 
 ---
 
@@ -10,55 +10,76 @@ It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, a
 
 ### 🤖 AI Chat Assistant
 
-* Natural language product search
-* Semantic recommendations ("trending outfits", "best outfits for men")
-* Hybrid AI: **Manual logic + Gemini Flash AI**
-* Zero hallucination (AI only uses DB products)
+- Natural language product search
+- Semantic recommendations ("trending outfits", "best outfits for men")
+- Hybrid AI: **Manual Logic + Gemini Flash AI**
+- Grounded recommendations based on real database products
 
 ### 🔐 Login Required
- * SmartTry AI is available only to authenticated users to ensure personalization,
- * secure order access, and controlled AI usage.
+
+- SmartTry AI is available only to authenticated users.
+- Enables personalization, secure order access, and controlled AI usage.
 
 ### 🛒 Product Discovery
 
-* Browse by category, gender, price
-* Trending & popular products
-* Style-based filtering (streetwear, casual, modern)
+- Browse by category, gender, and price
+- Trending and popular products
+- Style-based filtering (streetwear, casual, modern)
 
 ### 📦 Order Tracking
 
-* Track orders using Order ID
-* View order status and items inside chat
+- Track orders using Order ID
+- View order status and items inside chat
 
-### 🔐 Authentication Aware
+### 🔐 Authentication-Aware Personalization
 
-* Personalized recommendations for logged-in users
-* Uses user interests & cart history
+- Personalized recommendations for logged-in users
+- Uses user interests and cart history
+
+### 💳 Secure Online Payments
+
+- Integrated **Razorpay** for online payment processing
+- Backend payment order creation and payment verification
+- Payment status handling for e-commerce orders
 
 ### ⚡ Real-Time Experience
 
-* WebSocket-powered chat
-* Smooth UI with carousels & cards
+- WebSocket-powered chat
+- Real-time AI responses
+- Interactive product carousels and cards
 
 ---
 
 ## 🧠 How SmartTry AI Works
 
-1. **Manual Intelligence (Fast & Deterministic)**
+### 1. Manual Intelligence — Fast & Deterministic
 
-   * Greetings
-   * Order tracking
-   * Category, price & gender filters
+Handles predictable requests without unnecessary AI calls:
 
-2. **Gemini Flash AI (Semantic Intelligence)**
+- Greetings
+- Order tracking
+- Category, price, and gender filters
 
-   * Understands intent & style
-   * Recommends only real products
-   * Returns structured product data
+### 2. Gemini Flash AI — Semantic Intelligence
 
-3. **Safe Fallbacks**
+- Understands product intent and style preferences
+- Helps interpret natural-language searches
+- Recommendations are grounded in real product data
 
-   * Helpful suggestions if nothing matches
+### 3. Safe Fallbacks
+
+- Provides helpful suggestions when no matching products are found
+- Uses database-backed product results rather than inventing products
+
+---
+
+## 🏗️ System Design & Implementation
+
+Explore the architecture, request flow, and implementation details of SmartTry AI:
+
+- **System Design:** [[Add your SmartTry system design document link here]](https://docs.google.com/document/d/1AgxbHk5If4oOTiCEpYpi0cnpV86YpBH7bP2C_6FBYTU/edit?usp=sharing)
+
+These documents can cover the application architecture, AI-powered search flow, WebSocket communication, caching strategy, payment workflow, and database integration.
 
 ---
 
@@ -66,18 +87,25 @@ It combines **rule-based logic** with **Gemini AI** to deliver fast, accurate, a
 
 ### Frontend
 
-* React.js
-* Chakra UI
-* WebSockets
-* Vite
+- React.js
+- Chakra UI
+- WebSockets
+- Vite
 
 ### Backend
 
-* Node.js
-* Express.js
-* MongoDB (Mongoose)
-* WebSockets
-* Gemini 2.5 Flash API
+- Node.js
+- Express.js
+- MongoDB
+- Mongoose
+- Gemini 2.5 Flash API
+- Razorpay Payment Gateway
+
+### Infrastructure & Performance
+
+- Redis caching
+- Docker
+- REST APIs and WebSockets
 
 ---
 
